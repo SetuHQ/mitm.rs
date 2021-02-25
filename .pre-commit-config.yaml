@@ -1,0 +1,42 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.4.0
+    hooks:
+      # - id: no-commit-to-branch
+      #   args: [--branch=master]
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: fix-encoding-pragma
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: pretty-format-json
+        args: [--autofix]
+      - id: check-xml
+      - id: debug-statements
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: requirements-txt-fixer
+      - id: detect-aws-credentials
+
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: master
+    hooks:
+    -   id: fmt
+    -   id: cargo-check
+
+  # - repo: https://github.com/igorshubovych/markdownlint-cli
+  #   rev: v0.23.2
+  #   hooks:
+  #     - id: markdownlint
+
+  - repo: https://github.com/resmio/pre-commit-doctoc
+    rev: v1.0.0
+    hooks:
+      - id: doctoc
+        args: [--title=## Table of Contents]
+
+fail_fast: true
+exclude: ^migrations/
