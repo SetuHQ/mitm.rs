@@ -16,6 +16,61 @@ use crate::util::args::{parse_args, Args};
 use crate::util::cert::{mk_ca_cert, mk_ca_signed_cert, read_cert, read_pkey, verify};
 
 fn main() {
+    println!(
+        "{}",
+        "              d8b 888                                       "
+            .truecolor(200, 100, 250)
+            .bold()
+    );
+    println!(
+        "{}",
+        "              Y8P 888                                       "
+            .truecolor(200, 100, 250)
+            .bold()
+    );
+    println!(
+        "{}",
+        "                  888                                       "
+            .truecolor(200, 100, 250)
+            .bold()
+    );
+    println!(
+        "{}",
+        "88888b.d88b.  888 888888 88888b.d88b.      888d888 .d8888b  "
+            .truecolor(200, 100, 250)
+            .bold()
+    );
+    println!(
+        "{}",
+        "888 '888 '88b 888 888    888 '888 '88b     888P'   88K 888"
+            .truecolor(200, 100, 250)
+            .bold()
+    );
+    println!(
+        "{}",
+        "888  888  888 888 Y88b.  888  888  888 d8b 888          X88 "
+            .truecolor(200, 100, 250)
+            .bold()
+    );
+    println!(
+        "{}",
+        "888  888  888 888  'Y888 888  888  888 Y8P 888      88888P' "
+            .truecolor(200, 100, 250)
+            .bold()
+    );
+    println!(
+        "{}",
+        "                                                            "
+            .truecolor(200, 100, 250)
+            .bold()
+    );
+    println!(
+        "{}",
+        "████████████████████████████████████████████████████████████"
+            .truecolor(200, 100, 250)
+            .bold()
+    );
+
     let yaml = load_yaml!("../config/cmd_args.yml");
     let app: App = App::from(yaml);
 
