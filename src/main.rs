@@ -9,6 +9,9 @@ use clap::{load_yaml, App};
 use openssl::pkey::{PKey, PKeyRef, Private};
 use openssl::x509::X509;
 
+use colored::*;
+use std::str::from_utf8;
+
 use crate::util::args::{parse_args, Args};
 use crate::util::cert::{mk_ca_cert, mk_ca_signed_cert, read_cert, read_pkey, verify};
 
@@ -39,4 +42,23 @@ fn main() {
             .map(|x| read_pkey(x.to_string()).unwrap())
             .collect()
     });
+
+    println!(
+        "{}",
+        format!(
+            "CA certificate: \n{}",
+            from_utf8(&ca_cert.to_pem().unwrap()).unwrap().magenta()
+        )
+    );
+    println!(
+        "{}",
+        format!(
+            "CA private key: \n{}",
+            from_utf8(&ca_privkey.private_key_to_pem_pkcs8().unwrap())
+                .unwrap()
+                .magenta()
+        )
+    );
+
+    let client_cert_required: bool = client_certs.map(|x| x.len() > 0).unwrap_or(false);
 }
