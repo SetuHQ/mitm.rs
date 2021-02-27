@@ -2,24 +2,31 @@ use colored::*;
 
 use clap::App;
 use serde::{Deserialize, Serialize};
-use serde_json::from_str;
+use serde_json;
 use std::fs;
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Args {
-    ca: String,
+pub struct Args {
+    #[serde(default)]
+    pub ca_cert: Option<String>,
+    #[serde(default)]
+    pub ca_privkey: Option<String>,
     #[serde(default = "default_host")]
-    host: String,
+    pub host: String,
     #[serde(default = "default_port")]
-    port: u32,
-    client_key: Vec<String>,
-    client_cert: Vec<String>,
-    client_host: Vec<String>,
+    pub port: u32,
+    #[serde(default)]
+    pub client_key: Option<Vec<String>>,
+    #[serde(default)]
+    pub client_cert: Option<Vec<String>>,
+    #[serde(default)]
+    pub client_host: Option<Vec<String>>,
     #[serde(default = "default_log_file")]
-    log_file: String,
-    basic_auth_user: Vec<String>,
-    basic_auth_password: Vec<String>,
-    basic_auth_host: Vec<String>,
+    pub log_file: String,
+    #[serde(default)]
+    pub basic_auth_user: Option<String>,
+    #[serde(default)]
+    pub basic_auth_password: Option<String>,
 }
 
 fn default_host() -> String {
@@ -39,32 +46,95 @@ pub fn parse_args(app: App) -> Args {
 
     if let Some(config_file) = matches.value_of("config") {
         // read and parse the config file
-        let config_contents =
-            fs::read_to_string(config_file).expect("Something went wrong reading the file");
+        let config_contents = fs::read_to_string(config_file)
+            .expect(&"Something went wrong reading the config file".red());
 
         // parse arguments from file
-        let args: Args = serde_json::from_str(&config_contents).unwrap();
+        let mut args: Args = serde_json::from_str(&config_contents).unwrap();
+
+        // load file contents
+        args.ca_cert = args.ca_cert.map(|x| fs::read_to_string(x).unwrap());
+        args.ca_privkey = args.ca_privkey.map(|x| fs::read_to_string(x).unwrap());
+        args.client_key = args
+            .client_key
+            .map(|a| a.iter().map(|x| fs::read_to_string(x).unwrap()).collect());
+        args.client_cert = args
+            .client_cert
+            .map(|a| a.iter().map(|x| fs::read_to_string(x).unwrap()).collect());
         args
     } else {
-        println!("Command line config file not present, proceeding to parse cmd params");
+        println!(
+            "{}",
+            "Command line config file not present, proceeding to parse cmd params".magenta()
+        );
 
-        let ca = matches.value_of("ca");
+        // load certificate file contents
+        let ca_cert: Option<String> = matches.value_of("ca_cert").map(|x| {
+            let cert =
+                fs::read_to_string(x).expect(&format!("Could not read ca cert {}", x.red().bold()));
+            return cert;
+        });
+        let ca_privkey: Option<String> = matches.value_of("ca_privkey").map(|x| {
+            let cert =
+                fs::read_to_string(x).expect(&format!("Could not read ca cert {}", x.red().bold()));
+            return cert;
+        });
+
+        let client_keys: Option<Vec<String>> = matches.value_of("client_key").map(|x| {
+            let files: Vec<String> = x
+                .to_string()
+                .split(",")
+                .map(|x| {
+                    let file_contents: String = fs::read_to_string(x)
+                        .expect(&format!("Could not read client key {}", x.red().bold()));
+                    return file_contents;
+                })
+                .collect();
+
+            return files;
+        });
+
+        let client_certs: Option<Vec<String>> = matches.value_of("client_cert").map(|x| {
+            let files: Vec<String> = x
+                .to_string()
+                .split(",")
+                .map(|x| {
+                    let file_contents: String = fs::read_to_string(x)
+                        .expect(&format!("Could not read client cert {}", x.red().bold()));
+                    return file_contents;
+                })
+                .collect();
+
+            return files;
+        });
+
+        let client_hosts: Option<Vec<String>> = matches.value_of("client_host").map(|x| {
+            let hosts: Vec<String> = x.to_string().split(",").map(|x| x.to_string()).collect();
+
+            return hosts;
+        });
+
+        // read other info
+        let host: Option<String> = matches.value_of("host").map(|x| x.to_string());
+        let port: Option<u32> = matches.value_of("port").map(|x| x.parse::<u32>().unwrap());
+        let log_file: Option<String> = matches.value_of("log_file").map(|x| x.to_string());
+        let basic_auth_user: Option<String> =
+            matches.value_of("basic_auth_user").map(|x| x.to_string());
+        let basic_auth_password: Option<String> = matches
+            .value_of("basic_auth_password")
+            .map(|x| x.to_string());
+
         Args {
-            ca: matches.value_of("ca").unwrap_or("").to_string(),
-            host: matches
-                .value_of("host")
-                .unwrap_or(&default_host())
-                .to_string(),
-            port: matches.value_of("port").unwrap_or("8080"),
-            client_key: matches.value_of("client_key").unwrap_or(Vec::new()),
-            client_cert: matches.value_of("client_cert").unwrap_or(Vec::new()),
-            client_host: matches.value_of("client_host").unwrap_or(Vec::new()),
-            log_file: matches.value_of("log_file").unwrap_or(default_log_file()),
-            basic_auth_user: matches.value_of("basic_auth_user").unwrap_or(Vec::new()),
-            basic_auth_password: matches
-                .value_of("basic_auth_password")
-                .unwrap_or(Vec::new()),
-            basic_auth_host: matches.value_of("basic_auth_host").unwrap_or(Vec::new()),
+            ca_cert: ca_cert,
+            ca_privkey: ca_privkey,
+            host: host.unwrap_or(default_host()),
+            port: port.unwrap_or(default_port()),
+            client_key: client_keys,
+            client_cert: client_certs,
+            client_host: client_hosts,
+            log_file: log_file.unwrap_or(default_log_file()),
+            basic_auth_user: basic_auth_user,
+            basic_auth_password: basic_auth_password,
         }
     }
 }

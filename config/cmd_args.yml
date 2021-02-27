@@ -1,71 +1,68 @@
 name: mitm.rs
 version: "0.1"
 author: ixaxaar
-about: Simple MITM forward proxy with client authentication
+long_help: Simple MITM forward proxy with client authentication
 args:
   - config:
-    short: c
-    long: config
-    value_name: FILE
-    about: Pick command line options from a config file
-    takes_value: true
+      short: c
+      long: config
+      value_name: FILE
+      long_help: Pick command line options from a config file
+      required: false
+      takes_value: true
   # CA certificate to sign per-request certificates
-  - ca:
-    about: CA Certificate to use
-    required: true
-    takes_value: true
+  - ca_cert:
+      long_help: Path of the CA Certificate to use [Optional]
+      required: false
+      takes_value: true
+  - ca_privkey:
+      long_help: Path of the CA private key to use [Optional]
+      required: false
+      takes_value: true
   # Local listening address
   - host:
-    about: Hostname to listen to
-    required: false
-    takes_value: true
-    default_value: "localhost"
+      long_help: Hostname to listen to
+      required: false
+      takes_value: true
+      default_value: "localhost"
   - port:
-    about: Port to listen to
-    required: false
-    takes_value: true
-    default_value: 8080
+      long_help: Port to listen to
+      required: false
+      takes_value: true
+      default_value: "8080"
   # Client certificates per target website
   - client_key:
-    about: Client certificate's private key
-    required: false
-    multiple: true
-    takes_value: true
+      long_help: Client certificate's private key location (comma separated) [Optional]
+      required: false
+      # multiple: true
+      takes_value: true
   - client_cert:
-    about: Client certificate
-    required: false
-    multiple: true
-    takes_value: true
+      long_help: Client certificate location (comma separated) [Optional]
+      required: false
+      # multiple: true
+      takes_value: true
   - client_host:
-    about: Website / endpoint for which this client certificate applies
-    required: false
-    multiple: true
-    takes_value: true
-    requires:
-      - client_key
-      - client_cert
+      long_help: Websites / endpoint for which corresponding client certificate applies (comma separated) [Optional]
+      required: false
+      # multiple: true
+      takes_value: true
+      requires:
+        - client_key
+        - client_cert
   # Request logging
   - log_file:
-    about: Log requests to file
-    required: false
-    takes_value: true
-    default_value: "requests.log.json"
+      long_help: Log requests to file
+      required: false
+      takes_value: true
+      default_value: "requests.log.json"
   # Client cerdentials per target website
   - basic_auth_user:
-    about: Username for basic auth
-    required: false
-    multiple: true
-    takes_value: true
+      long_help: Username for basic auth [Optional]
+      required: false
+      # multiple: true
+      takes_value: true
   - basic_auth_password:
-    about: Password for basic auth
-    required: false
-    multiple: true
-    takes_value: true
-  - basic_auth_host:
-    about: Website / endpoint for which this basic auth applies
-    required: false
-    multiple: true
-    takes_value: true
-    requires:
-      - basic_auth_user
-      - basic_auth_password
+      long_help: Password for basic auth [Optional]
+      required: false
+      # multiple: true
+      takes_value: true
