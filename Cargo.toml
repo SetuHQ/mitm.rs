@@ -18,3 +18,5 @@ openssl             = "0.10"
 openssl-sys         = "0.9"
 hyper               = { version = "0.14", features = ["full"] }
 tokio               = { version = "1", features = ["full"] }
+hyper-tls           = "0.5"
+tokio-native-tls    = "0.3"
