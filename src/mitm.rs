@@ -80,7 +80,6 @@ fn mitm(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     //         client.request(req).await
     //     }
     // }
-    println!("adnfhkfvfsdvdfufvbvbeuvugegvfedrbbgebvhe--------------------");
     Ok(Response::new(Body::from("Not implemented yet")))
   }
 }
