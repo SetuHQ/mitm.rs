@@ -11,6 +11,12 @@ use openssl::x509::extension::{
 };
 use openssl::x509::{X509NameBuilder, X509Ref, X509Req, X509ReqBuilder, X509VerifyResult, X509};
 
+#[derive(Clone)]
+pub struct CertPair {
+  pub key:  PKey<Private>,
+  pub cert: X509,
+}
+
 /// Make a CA certificate and private key
 pub fn mk_ca_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
   let rsa = Rsa::generate(2048)?;

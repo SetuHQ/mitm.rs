@@ -24,7 +24,7 @@ args:
       long_help: Hostname to listen to
       required: false
       takes_value: true
-      default_value: "localhost"
+      default_value: "127.0.0.1"
   - port:
       long_help: Port to listen to
       required: false

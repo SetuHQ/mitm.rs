@@ -1,9 +1,11 @@
-use std::fs;
+use std::fmt::Display;
+use std::{fmt, fs};
 
 use clap::App;
 use colored::*;
 use serde::{Deserialize, Serialize};
 use serde_json;
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Args {
@@ -29,7 +31,7 @@ pub struct Args {
   pub basic_auth_password: Option<String>,
 }
 
-fn default_host() -> String { "localhost".to_string() }
+fn default_host() -> String { "127.0.0.1".to_string() }
 
 fn default_port() -> u32 { 8080 }
 
