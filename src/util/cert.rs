@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::env;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
+use colored::*;
+use hyper::http::uri::Authority;
 use lazy_static::lazy_static;
+use lru_cache::LruCache;
 use openssl::asn1::Asn1Time;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::error::ErrorStack;
@@ -27,14 +30,17 @@ lazy_static! {
 
 /// Make a CA certificate and private key
 pub fn mk_ca_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
+  println!("{}", "Creating CA certificate".green());
+
+  // generate private key
   let rsa = Rsa::generate(2048)?;
   let privkey = PKey::from_rsa(rsa)?;
 
   let mut x509_name = X509NameBuilder::new()?;
-  x509_name.append_entry_by_text("C", &env::var("CA_C").unwrap_or("IN".to_string()))?;
-  x509_name.append_entry_by_text("ST", &env::var("CA_ST").unwrap_or("KA".to_string()))?;
-  x509_name.append_entry_by_text("O", &env::var("CA_O").unwrap_or("mitm.rs".to_string()))?;
-  x509_name.append_entry_by_text("CN", &env::var("CA_CN").unwrap_or("mitm.rs".to_string()))?;
+  x509_name.append_entry_by_text("C", &env::var("CERT_COUNTRY").unwrap_or("IN".to_string()))?;
+  x509_name.append_entry_by_text("ST", &env::var("CERT_STATE").unwrap_or("MH".to_string()))?;
+  x509_name.append_entry_by_text("O", &env::var("CERT_ORGANIZATION").unwrap_or("mitm.rs".to_string()))?;
+  x509_name.append_entry_by_text("CN", &env::var("CERT_COMMONNAME").unwrap_or("mitm.rs".to_string()))?;
   let x509_name = x509_name.build();
 
   let mut cert_builder = X509::builder()?;
@@ -48,9 +54,11 @@ pub fn mk_ca_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
   cert_builder.set_subject_name(&x509_name)?;
   cert_builder.set_issuer_name(&x509_name)?;
   cert_builder.set_pubkey(&privkey)?;
+
+  // cert expiry
   let not_before = Asn1Time::days_from_now(0)?;
-  cert_builder.set_not_before(&not_before)?;
   let not_after = Asn1Time::days_from_now(env::var("CA_EXPIRY").unwrap_or("1095".to_string()).parse::<u32>().unwrap())?;
+  cert_builder.set_not_before(&not_before)?;
   cert_builder.set_not_after(&not_after)?;
 
   cert_builder.append_extension(BasicConstraints::new().critical().ca().build()?)?;
@@ -66,15 +74,15 @@ pub fn mk_ca_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
 }
 
 /// Make a X509 request with the given private key
-fn mk_request(privkey: &PKey<Private>) -> Result<X509Req, ErrorStack> {
+fn mk_request(privkey: &PKey<Private>, authority: Authority) -> Result<X509Req, ErrorStack> {
   let mut req_builder = X509ReqBuilder::new()?;
   req_builder.set_pubkey(&privkey)?;
 
   let mut x509_name = X509NameBuilder::new()?;
-  x509_name.append_entry_by_text("C", &env::var("CA_C").unwrap_or("IN".to_string()))?;
-  x509_name.append_entry_by_text("ST", &env::var("CA_ST").unwrap_or("KA".to_string()))?;
-  x509_name.append_entry_by_text("O", &env::var("CA_O").unwrap_or("mitm.rs".to_string()))?;
-  x509_name.append_entry_by_text("CN", &env::var("CA_CN").unwrap_or("mitm.rs".to_string()))?;
+  x509_name.append_entry_by_text("C", &env::var("CERT_COUNTRY").unwrap_or("IN".to_string()))?;
+  x509_name.append_entry_by_text("ST", &env::var("CERT_STATE").unwrap_or("MH".to_string()))?;
+  x509_name.append_entry_by_text("O", authority.host())?;
+  x509_name.append_entry_by_text("CN", authority.host())?;
   let x509_name = x509_name.build();
   req_builder.set_subject_name(&x509_name)?;
 
@@ -87,11 +95,16 @@ fn mk_request(privkey: &PKey<Private>) -> Result<X509Req, ErrorStack> {
 pub fn mk_ca_signed_cert(
   ca_cert: &X509Ref,
   ca_privkey: &PKeyRef<Private>,
+  authority: Authority,
 ) -> Result<(X509, PKey<Private>), ErrorStack> {
+  println!("{} for {}", "Creating signed certificate".green(), authority.host().red());
+
+  // generate private key
   let rsa = Rsa::generate(2048)?;
   let privkey = PKey::from_rsa(rsa)?;
 
-  let req = mk_request(&privkey)?;
+  // make cert signing request
+  let req = mk_request(&privkey, authority)?;
 
   let mut cert_builder = X509::builder()?;
   cert_builder.set_version(2)?;
@@ -104,9 +117,11 @@ pub fn mk_ca_signed_cert(
   cert_builder.set_subject_name(req.subject_name())?;
   cert_builder.set_issuer_name(ca_cert.subject_name())?;
   cert_builder.set_pubkey(&privkey)?;
+
+  // cert expiry
   let not_before = Asn1Time::days_from_now(0)?;
-  cert_builder.set_not_before(&not_before)?;
   let not_after = Asn1Time::days_from_now(365)?;
+  cert_builder.set_not_before(&not_before)?;
   cert_builder.set_not_after(&not_after)?;
 
   cert_builder.append_extension(BasicConstraints::new().build()?)?;
@@ -114,20 +129,21 @@ pub fn mk_ca_signed_cert(
   cert_builder
     .append_extension(KeyUsage::new().critical().non_repudiation().digital_signature().key_encipherment().build()?)?;
 
-  let subject_key_identifier = SubjectKeyIdentifier::new().build(&cert_builder.x509v3_context(Some(ca_cert), None))?;
-  cert_builder.append_extension(subject_key_identifier)?;
+  // TODO: Figure out if we need these extensions for debugging
+  // let subject_key_identifier = SubjectKeyIdentifier::new().build(&cert_builder.x509v3_context(Some(ca_cert), None))?;
+  // cert_builder.append_extension(subject_key_identifier)?;
 
-  let auth_key_identifier = AuthorityKeyIdentifier::new()
-    .keyid(false)
-    .issuer(false)
-    .build(&cert_builder.x509v3_context(Some(ca_cert), None))?;
-  cert_builder.append_extension(auth_key_identifier)?;
+  // let auth_key_identifier = AuthorityKeyIdentifier::new()
+  //   .keyid(false)
+  //   .issuer(false)
+  //   .build(&cert_builder.x509v3_context(Some(ca_cert), None))?;
+  // cert_builder.append_extension(auth_key_identifier)?;
 
-  let subject_alt_name = SubjectAlternativeName::new()
-    .dns("*.example.com")
-    .dns("hello.com")
-    .build(&cert_builder.x509v3_context(Some(ca_cert), None))?;
-  cert_builder.append_extension(subject_alt_name)?;
+  // let subject_alt_name = SubjectAlternativeName::new()
+  //   .dns("*.example.com")
+  //   .dns("hello.com")
+  //   .build(&cert_builder.x509v3_context(Some(ca_cert), None))?;
+  // cert_builder.append_extension(subject_alt_name)?;
 
   cert_builder.sign(&ca_privkey, MessageDigest::sha256())?;
   let cert = cert_builder.build();
