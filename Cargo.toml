@@ -21,3 +21,5 @@ tokio               = { version = "1", features = ["full"] }
 hyper-tls           = "0.5"
 tokio-native-tls    = "0.3"
 futures-util        = "0.3"
+hyper-rustls        = "0.22"
+lazy_static         = "1.4"

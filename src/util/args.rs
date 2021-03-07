@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Args {
   #[serde(default)]
   pub ca_cert:             Option<String>,

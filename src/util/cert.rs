@@ -1,5 +1,8 @@
+use std::collections::HashMap;
 use std::env;
+use std::sync::Mutex;
 
+use lazy_static::lazy_static;
 use openssl::asn1::Asn1Time;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::error::ErrorStack;
@@ -15,6 +18,11 @@ use openssl::x509::{X509NameBuilder, X509Ref, X509Req, X509ReqBuilder, X509Verif
 pub struct CertPair {
   pub key:  PKey<Private>,
   pub cert: X509,
+}
+
+// The global client certificates cache
+lazy_static! {
+  pub static ref CERTIFICATES: Mutex<HashMap<String, CertPair>> = Mutex::new(HashMap::new());
 }
 
 /// Make a CA certificate and private key
