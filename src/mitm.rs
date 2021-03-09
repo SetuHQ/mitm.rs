@@ -3,29 +3,34 @@ use std::convert::{Infallible, TryInto};
 use std::io::{Error, ErrorKind};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use colored::*;
 use futures_util::future::try_join;
+use futures_util::{FutureExt, TryFutureExt};
 use hyper::client::HttpConnector;
-use hyper::http::uri::{Authority, Scheme};
+use hyper::http::uri::{self, Authority, Scheme};
 use hyper::http::{StatusCode, Uri};
-use hyper::server::conn::AddrStream;
-use hyper::service::{make_service_fn, service_fn};
+use hyper::server::conn::{AddrStream, Http};
+use hyper::service::{make_service_fn, service_fn, Service};
 use hyper::upgrade::Upgraded;
-use hyper::{Body, Client, Method, Request, Response, Server};
-use hyper_tls::HttpsConnector;
+use hyper::{http, upgrade, Body, Client, Method, Request, Response, Server};
+use hyper_rustls::{HttpsConnector, MaybeHttpsStream};
+use lazy_static::__Deref;
 // TLS
 use openssl::pkey::{PKey, PKeyRef, Private};
 use openssl::x509::X509;
-use tokio::io;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, BufStream};
+use rustls::ClientConfig;
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt, BufStream};
 use tokio::net::TcpStream;
 use tokio_native_tls::{native_tls, TlsConnector};
+use tokio_rustls::{Accept, TlsAcceptor, TlsStream};
 
 use crate::util::args::Args;
 use crate::util::cert::{mk_ca_cert, mk_ca_signed_cert, read_cert, read_pkey, verify, CertPair, CERTIFICATES};
 use crate::util::tls::tls_config;
+use crate::util::util::print_type_of;
 
 
 #[tokio::main]
@@ -41,7 +46,7 @@ pub async fn listen(args: Args, ca: CertPair) {
     return async move {
       // Callback for handling every incoming request
       return Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
-        println!("MITM handling request {:?}", req);
+        println!("Handling request {:?}", req);
 
         let args = args.clone();
         let ca = ca.clone();
@@ -51,7 +56,7 @@ pub async fn listen(args: Args, ca: CertPair) {
           let mut failure = Response::new(Body::from("Error: Server error occurred."));
           *failure.status_mut() = StatusCode::BAD_REQUEST;
           // MITM the request
-          let response = mitm(req, args, ca).unwrap_or(failure);
+          let response = mitm(req, args, ca).await.unwrap_or(failure);
 
           return Ok::<_, Infallible>(response);
         }
@@ -68,23 +73,94 @@ pub async fn listen(args: Args, ca: CertPair) {
   }
 }
 
-fn mitm(req: Request<Body>, args: Args, ca: CertPair) -> Result<Response<Body>, hyper::Error> {
-  let host: Option<String> = req.uri().authority().and_then(|auth| auth.as_str().parse().ok());
+async fn mitm(req: Request<Body>, args: Args, ca: CertPair) -> Result<Response<Body>, hyper::Error> {
+  println!("Impersonating {}", req.uri().to_string().red());
+  let host = format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
 
   if Method::CONNECT == req.method() {
-    if let Some(addr) = host {
-      println!("Received a CONNECT request from {}", addr.red());
-      let connect_response =
-        handle_connect_request(req).unwrap_or(Body::from("Error: Could not perform the CONNECT protocol handshake."));
+    println!("Received a CONNECT request for {}", host.red());
 
-      Ok(Response::new(connect_response))
-    } else {
-      eprintln!("CONNECT host is not socket addr: {:?}", req.uri());
-      let mut resp = Response::new(Body::from("CONNECT must be to a socket address"));
-      *resp.status_mut() = StatusCode::BAD_REQUEST;
+    // Prepare: get TLS config with impersonating certs, sort out the target URI
+    let authority = req.uri().authority().unwrap();
+    let tls_conf = tls_config(authority, |auth| mk_ca_signed_cert(&ca.cert, &ca.key, authority));
+    let uri = uri::Builder::new().scheme("https").authority(authority.clone()).path_and_query("/").build().unwrap();
 
-      Ok(resp)
-    }
+    // Configure TLS
+    let mut client_config = ClientConfig::new();
+    // .set_single_client_cert() // TODO: Add client certificates here
+    // Load system certificates
+    client_config.root_store = match rustls_native_certs::load_native_certs() {
+      Ok(store) => store,
+      Err((Some(store), err)) => {
+        println!("Could not load all certificates: {:?}", err);
+        store
+      }
+      Err((None, err)) => Err(err).expect("cannot access native cert store"),
+    };
+    client_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+
+    // Get a TLS connection to the target
+    let mut http = HttpConnector::new();
+    http.enforce_http(false);
+    let mut connector = HttpsConnector::from((http, client_config));
+    let mut client: Client<HttpsConnector<HttpConnector>, Body> = Client::builder().build(connector.clone());
+
+    // let mut request: Vec<u8> = Vec::with_capacity(10000);
+    // let mut connection = connector.call(uri).await;
+
+    // let connection = client.connection_for(uri);
+
+
+    // connection.read_buf(&mut request);
+
+    // println!("connection: {:?}", request);
+    // print_type_of(&connection);
+
+    // connection.map(|conn| {
+    //   async {
+    //     println!("{}", "Could not upgrade client connection".red());
+
+    //     hyper::upgrade::on(req)
+    //       .await
+    //       .map_err(|e| {
+    //         println!("{}", "Could not upgrade client connection".red());
+    //         Error::new(ErrorKind::Other, e)
+    //       })
+    //       .map(|upgraded: Upgraded| -> Accept<Upgraded> {
+    //         println!("***********************************************");
+    //         TlsAcceptor::from(tls_conf).accept(upgraded)
+    //       })
+    //       .map(move |stream| {
+    //         println!("proxy_connect() tls connection established with proxy client: {:?}", "lol");
+    //         // service_inner_requests::<T>(stream)
+    //       });
+    //   }
+    // });
+
+    // connection.map(|_x| async {
+    //   // upgrade the connection to client
+    //   println!("Upgrading");
+    //   hyper::upgrade::on(req).await.map_err(|e| {
+    //     println!("{}", "Could not upgrade client connection".red());
+    //     Error::new(ErrorKind::Other, e)
+    //   })
+    //   .map(|upgraded: Upgraded| -> Accept<Upgraded> {
+    //     println!("***********************************************");
+    //     TlsAcceptor::from(tls_conf).accept(upgraded)
+    //   })
+    //   .map(move |stream| {
+    //     println!("proxy_connect() tls connection established with proxy client: {:?}", "lol");
+    //     // service_inner_requests::<T>(stream)
+    //   })
+    // });
+
+    // println!("{:?}", &connection);
+    // print_type_of(&connection);
+
+    // let connect_response =
+    //   handle_connect_request(req).unwrap_or(Body::from("Error: Could not perform the CONNECT protocol handshake."));
+
+    Ok(Response::new(Body::from("lol")))
   } else {
     // Bare HTTP request, just log and move on
     // match req.uri().scheme() {

@@ -279,8 +279,6 @@ checksum = "494b4d60369511e7dea41cf646832512a94e542f68bb9c49e54518e0f468eb47"
 [[package]]
 name = "hyper"
 version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8e946c2b1349055e0b72ae281b238baf1a3ea7307c7e9f9d64673bdd9c26ac7"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -461,6 +459,7 @@ dependencies = [
  "termcolor",
  "tokio",
  "tokio-native-tls",
+ "tokio-rustls",
 ]
 
 [[package]]

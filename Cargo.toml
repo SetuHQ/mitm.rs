@@ -22,6 +22,7 @@ rustls              = "0.19"
 rustls-native-certs = "0.5"
 hyper-tls           = "0.5"
 hyper-rustls        = "0.22"
+tokio-rustls        = "0.22"
 tokio-native-tls    = "0.3"
 # Utils
 futures-util        = "0.3"
@@ -30,3 +31,8 @@ bytes               = "1.0"
 lru-cache           = "0.1"
 colored             = "2.0.0"
 termcolor           = "1.1.2"
+
+[patch.crates-io]
+"hyper" = { path = "./lib/hyper" }
+
+# "hyper" = { git = "https://github.com/SetuHQ/hyper-mitm", branch = "mitm" }
