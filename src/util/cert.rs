@@ -95,7 +95,7 @@ fn mk_request(privkey: &PKey<Private>, authority: Authority) -> Result<X509Req, 
 pub fn mk_ca_signed_cert(
   ca_cert: &X509Ref,
   ca_privkey: &PKeyRef<Private>,
-  authority: Authority,
+  authority: &Authority,
 ) -> Result<(X509, PKey<Private>), ErrorStack> {
   println!("{} for {}", "Creating signed certificate".green(), authority.host().red());
 
@@ -104,7 +104,7 @@ pub fn mk_ca_signed_cert(
   let privkey = PKey::from_rsa(rsa)?;
 
   // make cert signing request
-  let req = mk_request(&privkey, authority)?;
+  let req = mk_request(&privkey, authority.clone())?;
 
   let mut cert_builder = X509::builder()?;
   cert_builder.set_version(2)?;
