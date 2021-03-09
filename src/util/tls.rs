@@ -28,10 +28,9 @@ lazy_static! {
 
 // Either load an existing TLS server configuration from cache or build a new
 // one (and cache it) for the provided authority.
-pub fn tls_config(
-  authority: &Authority,
-  cert_creator: fn(&Authority) -> Result<(X509, PKey<Private>), ErrorStack>,
-) -> Arc<rustls::ServerConfig> {
+pub fn tls_config<T>(authority: &Authority, cert_creator: T) -> Arc<rustls::ServerConfig>
+where
+  T: Fn(&Authority) -> Result<(X509, PKey<Private>), ErrorStack>, {
   if !TLS_CONFIG_CACHE.lock().unwrap().contains_key(authority.host()) {
     let tls_cfg: Arc<rustls::ServerConfig> = {
       // create certificates for current target domain and convert into rustls types
