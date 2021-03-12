@@ -1,5 +1,5 @@
 macro_rules! cfg_feature {
-    (
+  (
         #![$meta:meta]
         $($item:item)*
     ) => {
@@ -8,11 +8,11 @@ macro_rules! cfg_feature {
             #[cfg_attr(docsrs, doc(cfg($meta)))]
             $item
         )*
-    }
+    };
 }
 
 macro_rules! cfg_proto {
-    ($($item:item)*) => {
+  ($($item:item)*) => {
         cfg_feature! {
             #![all(
                 any(feature = "http1", feature = "http2"),
@@ -20,7 +20,7 @@ macro_rules! cfg_proto {
             )]
             $($item)*
         }
-    }
+    };
 }
 
 cfg_proto! {

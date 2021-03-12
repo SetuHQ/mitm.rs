@@ -15,32 +15,31 @@ use super::HttpBody;
 /// `Content-Length` is a possibility, but it is not strictly mandated to be present.
 pub async fn to_bytes<T>(body: T) -> Result<Bytes, T::Error>
 where
-    T: HttpBody,
-{
-    futures_util::pin_mut!(body);
+  T: HttpBody, {
+  futures_util::pin_mut!(body);
 
-    // If there's only 1 chunk, we can just return Buf::to_bytes()
-    let mut first = if let Some(buf) = body.data().await {
-        buf?
-    } else {
-        return Ok(Bytes::new());
-    };
+  // If there's only 1 chunk, we can just return Buf::to_bytes()
+  let mut first = if let Some(buf) = body.data().await {
+    buf?
+  } else {
+    return Ok(Bytes::new());
+  };
 
-    let second = if let Some(buf) = body.data().await {
-        buf?
-    } else {
-        return Ok(first.copy_to_bytes(first.remaining()));
-    };
+  let second = if let Some(buf) = body.data().await {
+    buf?
+  } else {
+    return Ok(first.copy_to_bytes(first.remaining()));
+  };
 
-    // With more than 1 buf, we gotta flatten into a Vec first.
-    let cap = first.remaining() + second.remaining() + body.size_hint().lower() as usize;
-    let mut vec = Vec::with_capacity(cap);
-    vec.put(first);
-    vec.put(second);
+  // With more than 1 buf, we gotta flatten into a Vec first.
+  let cap = first.remaining() + second.remaining() + body.size_hint().lower() as usize;
+  let mut vec = Vec::with_capacity(cap);
+  vec.put(first);
+  vec.put(second);
 
-    while let Some(buf) = body.data().await {
-        vec.put(buf?);
-    }
+  while let Some(buf) = body.data().await {
+    vec.put(buf?);
+  }
 
-    Ok(vec.into())
+  Ok(vec.into())
 }

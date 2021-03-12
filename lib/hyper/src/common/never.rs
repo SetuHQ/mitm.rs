@@ -9,13 +9,9 @@ use std::fmt;
 pub(crate) enum Never {}
 
 impl fmt::Display for Never {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {}
-    }
+  fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result { match *self {} }
 }
 
 impl Error for Never {
-    fn description(&self) -> &str {
-        match *self {}
-    }
+  fn description(&self) -> &str { match *self {} }
 }

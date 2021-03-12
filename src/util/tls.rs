@@ -18,7 +18,7 @@ use openssl::x509::extension::{
 };
 use openssl::x509::{X509NameBuilder, X509Ref, X509Req, X509ReqBuilder, X509VerifyResult, X509};
 use rustls;
-use rustls::{Certificate, PrivateKey};
+use rustls::{Certificate, ClientConfig, PrivateKey};
 
 
 // The global SSL certificates cache
@@ -55,4 +55,22 @@ where
   }
 
   TLS_CONFIG_CACHE.lock().unwrap().get_mut(authority.host()).unwrap().clone()
+}
+
+// Generate TLS config for a client, with client certificates if host is provided
+pub fn client_config(host: &str) -> ClientConfig {
+  let mut client_config = ClientConfig::new();
+  // .set_single_client_cert() // TODO: Add client certificates here
+  // Load system certificates
+  client_config.root_store = match rustls_native_certs::load_native_certs() {
+    Ok(store) => store,
+    Err((Some(store), err)) => {
+      println!("Could not load all certificates: {:?}", err);
+      store
+    }
+    Err((None, err)) => Err(err).expect("cannot access native cert store"),
+  };
+  client_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+
+  client_config
 }

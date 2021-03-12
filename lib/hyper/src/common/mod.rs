@@ -1,5 +1,5 @@
 macro_rules! ready {
-    ($e:expr) => {
+  ($e:expr) => {
         match $e {
             std::task::Poll::Ready(v) => v,
             std::task::Poll::Pending => return std::task::Poll::Pending,
@@ -25,12 +25,7 @@ pub(crate) mod watch;
 
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 pub(crate) use self::lazy::{lazy, Started as Lazy};
-#[cfg(any(
-    feature = "client",
-    feature = "http1",
-    feature = "http2",
-    feature = "runtime"
-))]
+#[cfg(any(feature = "client", feature = "http1", feature = "http2", feature = "runtime"))]
 pub(crate) use self::never::Never;
 pub(crate) use self::task::Poll;
 
@@ -38,4 +33,5 @@ pub(crate) use self::task::Poll;
 cfg_proto! {
     pub(crate) use std::marker::Unpin;
 }
-pub(crate) use std::{future::Future, pin::Pin};
+pub(crate) use std::future::Future;
+pub(crate) use std::pin::Pin;

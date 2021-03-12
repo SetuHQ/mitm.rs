@@ -10,13 +10,11 @@
 //! The [`Client`](Client) is the main way to send HTTP requests to a server.
 //! The default `Client` provides these things on top of the lower-level API:
 //!
-//! - A default **connector**, able to resolve hostnames and connect to
-//!   destinations over plain-text TCP.
-//! - A **pool** of existing connections, allowing better performance when
-//!   making multiple requests to the same hostname.
+//! - A default **connector**, able to resolve hostnames and connect to destinations over plain-text TCP.
+//! - A **pool** of existing connections, allowing better performance when making multiple requests to the same
+//!   hostname.
 //! - Automatic setting of the `Host` header, based on the request `Uri`.
-//! - Automatic request **retries** when a pooled connection is closed by the
-//!   server before any bytes have been written.
+//! - Automatic request **retries** when a pooled connection is closed by the server before any bytes have been written.
 //!
 //! Many of these features can configured, by making use of
 //! [`Client::builder`](Client::builder).
@@ -27,7 +25,8 @@
 //! [full client example](https://github.com/hyperium/hyper/blob/master/examples/client.rs).
 //!
 //! ```
-//! use hyper::{body::HttpBody as _, Client, Uri};
+//! use hyper::body::HttpBody as _;
+//! use hyper::{Client, Uri};
 //!
 //! # #[cfg(feature = "tcp")]
 //! # async fn fetch_httpbin() -> hyper::Result<()> {
@@ -60,9 +59,9 @@ cfg_feature! {
 
     pub use self::client::{Builder, Client, ResponseFuture};
 
-    mod client;
+    pub mod client;
     pub mod conn;
     pub(super) mod dispatch;
-    mod pool;
+    pub mod pool;
     pub mod service;
 }

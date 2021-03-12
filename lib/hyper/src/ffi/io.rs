@@ -14,16 +14,14 @@ pub const HYPER_IO_PENDING: size_t = 0xFFFFFFFF;
 /// has errored.
 pub const HYPER_IO_ERROR: size_t = 0xFFFFFFFE;
 
-type hyper_io_read_callback =
-    extern "C" fn(*mut c_void, *mut hyper_context<'_>, *mut u8, size_t) -> size_t;
-type hyper_io_write_callback =
-    extern "C" fn(*mut c_void, *mut hyper_context<'_>, *const u8, size_t) -> size_t;
+type hyper_io_read_callback = extern "C" fn(*mut c_void, *mut hyper_context<'_>, *mut u8, size_t) -> size_t;
+type hyper_io_write_callback = extern "C" fn(*mut c_void, *mut hyper_context<'_>, *const u8, size_t) -> size_t;
 
 /// An IO object used to represent a socket or similar concept.
 pub struct hyper_io {
-    read: hyper_io_read_callback,
-    write: hyper_io_write_callback,
-    userdata: *mut c_void,
+  read:     hyper_io_read_callback,
+  write:    hyper_io_write_callback,
+  userdata: *mut c_void,
 }
 
 ffi_fn! {
@@ -101,77 +99,58 @@ ffi_fn! {
 }
 
 /// cbindgen:ignore
-extern "C" fn read_noop(
-    _userdata: *mut c_void,
-    _: *mut hyper_context<'_>,
-    _buf: *mut u8,
-    _buf_len: size_t,
-) -> size_t {
-    0
+extern "C" fn read_noop(_userdata: *mut c_void, _: *mut hyper_context<'_>, _buf: *mut u8, _buf_len: size_t) -> size_t {
+  0
 }
 
 /// cbindgen:ignore
 extern "C" fn write_noop(
-    _userdata: *mut c_void,
-    _: *mut hyper_context<'_>,
-    _buf: *const u8,
-    _buf_len: size_t,
+  _userdata: *mut c_void,
+  _: *mut hyper_context<'_>,
+  _buf: *const u8,
+  _buf_len: size_t,
 ) -> size_t {
-    0
+  0
 }
 
 impl AsyncRead for hyper_io {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        let buf_ptr = unsafe { buf.unfilled_mut() }.as_mut_ptr() as *mut u8;
-        let buf_len = buf.remaining();
+  fn poll_read(
+    self: Pin<&mut Self>,
+    cx: &mut Context<'_>,
+    buf: &mut tokio::io::ReadBuf<'_>,
+  ) -> Poll<std::io::Result<()>> {
+    let buf_ptr = unsafe { buf.unfilled_mut() }.as_mut_ptr() as *mut u8;
+    let buf_len = buf.remaining();
 
-        match (self.read)(self.userdata, hyper_context::wrap(cx), buf_ptr, buf_len) {
-            HYPER_IO_PENDING => Poll::Pending,
-            HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "io error",
-            ))),
-            ok => {
-                // We have to trust that the user's read callback actually
-                // filled in that many bytes... :(
-                unsafe { buf.assume_init(ok) };
-                buf.advance(ok);
-                Poll::Ready(Ok(()))
-            }
-        }
+    match (self.read)(self.userdata, hyper_context::wrap(cx), buf_ptr, buf_len) {
+      HYPER_IO_PENDING => Poll::Pending,
+      HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, "io error"))),
+      ok => {
+        // We have to trust that the user's read callback actually
+        // filled in that many bytes... :(
+        unsafe { buf.assume_init(ok) };
+        buf.advance(ok);
+        Poll::Ready(Ok(()))
+      }
     }
+  }
 }
 
 impl AsyncWrite for hyper_io {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
-        let buf_ptr = buf.as_ptr();
-        let buf_len = buf.len();
+  fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+    let buf_ptr = buf.as_ptr();
+    let buf_len = buf.len();
 
-        match (self.write)(self.userdata, hyper_context::wrap(cx), buf_ptr, buf_len) {
-            HYPER_IO_PENDING => Poll::Pending,
-            HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "io error",
-            ))),
-            ok => Poll::Ready(Ok(ok)),
-        }
+    match (self.write)(self.userdata, hyper_context::wrap(cx), buf_ptr, buf_len) {
+      HYPER_IO_PENDING => Poll::Pending,
+      HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, "io error"))),
+      ok => Poll::Ready(Ok(ok)),
     }
+  }
 
-    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
+  fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> { Poll::Ready(Ok(())) }
 
-    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
+  fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> { Poll::Ready(Ok(())) }
 }
 
 unsafe impl Send for hyper_io {}

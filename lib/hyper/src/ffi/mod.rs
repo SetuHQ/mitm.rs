@@ -38,10 +38,9 @@ compile_error!("The `ffi` feature currently requires the `client` and `http1` fe
 
 #[cfg(not(hyper_unstable_ffi))]
 compile_error!(
-    "\
-    The `ffi` feature is unstable, and requires the \
-    `RUSTFLAGS='--cfg hyper_unstable_ffi'` environment variable to be set.\
-"
+  "\
+    The `ffi` feature is unstable, and requires the `RUSTFLAGS='--cfg hyper_unstable_ffi'` environment variable to be \
+   set."
 );
 
 #[macro_use]
@@ -54,15 +53,14 @@ mod http_types;
 mod io;
 mod task;
 
+pub(crate) use self::body::UserBody;
 pub use self::body::*;
 pub use self::client::*;
 pub use self::error::*;
 pub use self::http_types::*;
+pub(crate) use self::http_types::{HeaderCaseMap, ReasonPhrase};
 pub use self::io::*;
 pub use self::task::*;
-
-pub(crate) use self::body::UserBody;
-pub(crate) use self::http_types::{HeaderCaseMap, ReasonPhrase};
 
 /// Return in iter functions to continue iterating.
 pub const HYPER_ITER_CONTINUE: libc::c_int = 0;

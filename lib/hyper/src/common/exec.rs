@@ -15,12 +15,12 @@ use crate::service::HttpService;
 
 #[cfg(feature = "server")]
 pub trait ConnStreamExec<F, B: HttpBody>: Clone {
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
+  fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
 }
 
 #[cfg(feature = "server")]
 pub trait NewSvcExec<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>>: Clone {
-    fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>);
+  fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>);
 }
 
 pub(crate) type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
@@ -29,63 +29,56 @@ pub(crate) type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 // `tokio::spawn`.
 #[derive(Clone)]
 pub enum Exec {
-    Default,
-    Executor(Arc<dyn Executor<BoxSendFuture> + Send + Sync>),
+  Default,
+  Executor(Arc<dyn Executor<BoxSendFuture> + Send + Sync>),
 }
 
 // ===== impl Exec =====
 
 impl Exec {
-    pub(crate) fn execute<F>(&self, fut: F)
-    where
-        F: Future<Output = ()> + Send + 'static,
-    {
-        match *self {
-            Exec::Default => {
-                #[cfg(feature = "tcp")]
-                {
-                    tokio::task::spawn(fut);
-                }
-                #[cfg(not(feature = "tcp"))]
-                {
-                    // If no runtime, we need an executor!
-                    panic!("executor must be set")
-                }
-            }
-            Exec::Executor(ref e) => {
-                e.execute(Box::pin(fut));
-            }
+  pub(crate) fn execute<F>(&self, fut: F)
+  where
+    F: Future<Output = ()> + Send + 'static, {
+    match *self {
+      Exec::Default => {
+        #[cfg(feature = "tcp")]
+        {
+          tokio::task::spawn(fut);
         }
+        #[cfg(not(feature = "tcp"))]
+        {
+          // If no runtime, we need an executor!
+          panic!("executor must be set")
+        }
+      }
+      Exec::Executor(ref e) => {
+        e.execute(Box::pin(fut));
+      }
     }
+  }
 }
 
 impl fmt::Debug for Exec {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Exec").finish()
-    }
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.debug_struct("Exec").finish() }
 }
 
 #[cfg(feature = "server")]
 impl<F, B> ConnStreamExec<F, B> for Exec
 where
-    H2Stream<F, B>: Future<Output = ()> + Send + 'static,
-    B: HttpBody,
+  H2Stream<F, B>: Future<Output = ()> + Send + 'static,
+  B: HttpBody,
 {
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
-        self.execute(fut)
-    }
+  fn execute_h2stream(&mut self, fut: H2Stream<F, B>) { self.execute(fut) }
 }
 
 #[cfg(feature = "server")]
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for Exec
 where
-    NewSvcTask<I, N, S, E, W>: Future<Output = ()> + Send + 'static,
-    S: HttpService<Body>,
-    W: Watcher<I, S, E>,
+  NewSvcTask<I, N, S, E, W>: Future<Output = ()> + Send + 'static,
+  S: HttpService<Body>,
+  W: Watcher<I, S, E>,
 {
-    fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) {
-        self.execute(fut)
-    }
+  fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) { self.execute(fut) }
 }
 
 // ==== impl Executor =====
@@ -93,26 +86,22 @@ where
 #[cfg(feature = "server")]
 impl<E, F, B> ConnStreamExec<F, B> for E
 where
-    E: Executor<H2Stream<F, B>> + Clone,
-    H2Stream<F, B>: Future<Output = ()>,
-    B: HttpBody,
+  E: Executor<H2Stream<F, B>> + Clone,
+  H2Stream<F, B>: Future<Output = ()>,
+  B: HttpBody,
 {
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
-        self.execute(fut)
-    }
+  fn execute_h2stream(&mut self, fut: H2Stream<F, B>) { self.execute(fut) }
 }
 
 #[cfg(feature = "server")]
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for E
 where
-    E: Executor<NewSvcTask<I, N, S, E, W>> + Clone,
-    NewSvcTask<I, N, S, E, W>: Future<Output = ()>,
-    S: HttpService<Body>,
-    W: Watcher<I, S, E>,
+  E: Executor<NewSvcTask<I, N, S, E, W>> + Clone,
+  NewSvcTask<I, N, S, E, W>: Future<Output = ()>,
+  S: HttpService<Body>,
+  W: Watcher<I, S, E>,
 {
-    fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) {
-        self.execute(fut)
-    }
+  fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) { self.execute(fut) }
 }
 
 // If http2 is not enable, we just have a stub here, so that the trait bounds
@@ -127,17 +116,12 @@ pub struct H2Stream<F, B>(std::marker::PhantomData<(F, B)>);
 #[cfg(not(feature = "http2"))]
 impl<F, B, E> Future for H2Stream<F, B>
 where
-    F: Future<Output = Result<http::Response<B>, E>>,
-    B: crate::body::HttpBody,
-    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+  F: Future<Output = Result<http::Response<B>, E>>,
+  B: crate::body::HttpBody,
+  B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+  E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    type Output = ();
+  type Output = ();
 
-    fn poll(
-        self: Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        unreachable!()
-    }
+  fn poll(self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> { unreachable!() }
 }

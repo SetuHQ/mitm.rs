@@ -1,6 +1,7 @@
+use std::ffi::c_void;
+
 use bytes::Bytes;
 use libc::{c_int, size_t};
-use std::ffi::c_void;
 
 use super::body::hyper_body;
 use super::error::hyper_code;
@@ -20,8 +21,8 @@ pub struct hyper_response(pub(super) Response<Body>);
 /// These can be part of a request or response.
 #[derive(Default)]
 pub struct hyper_headers {
-    pub(super) headers: HeaderMap,
-    orig_casing: HeaderCaseMap,
+  pub(super) headers: HeaderMap,
+  orig_casing:        HeaderCaseMap,
 }
 
 // Will probably be moved to `hyper::ext::http1`
@@ -132,12 +133,12 @@ ffi_fn! {
 }
 
 impl hyper_request {
-    pub(super) fn finalize_request(&mut self) {
-        if let Some(headers) = self.0.extensions_mut().remove::<hyper_headers>() {
-            *self.0.headers_mut() = headers.headers;
-            self.0.extensions_mut().insert(headers.orig_casing);
-        }
+  pub(super) fn finalize_request(&mut self) {
+    if let Some(headers) = self.0.extensions_mut().remove::<hyper_headers>() {
+      *self.0.headers_mut() = headers.headers;
+      self.0.extensions_mut().insert(headers.orig_casing);
     }
+  }
 }
 
 // ===== impl hyper_response =====
@@ -224,55 +225,43 @@ ffi_fn! {
 }
 
 impl hyper_response {
-    pub(super) fn wrap(mut resp: Response<Body>) -> hyper_response {
-        let headers = std::mem::take(resp.headers_mut());
-        let orig_casing = resp
-            .extensions_mut()
-            .remove::<HeaderCaseMap>()
-            .unwrap_or_default();
-        resp.extensions_mut().insert(hyper_headers {
-            headers,
-            orig_casing,
-        });
+  pub(super) fn wrap(mut resp: Response<Body>) -> hyper_response {
+    let headers = std::mem::take(resp.headers_mut());
+    let orig_casing = resp.extensions_mut().remove::<HeaderCaseMap>().unwrap_or_default();
+    resp.extensions_mut().insert(hyper_headers { headers, orig_casing });
 
-        hyper_response(resp)
+    hyper_response(resp)
+  }
+
+  fn reason_phrase(&self) -> &[u8] {
+    if let Some(reason) = self.0.extensions().get::<ReasonPhrase>() {
+      return &reason.0;
     }
 
-    fn reason_phrase(&self) -> &[u8] {
-        if let Some(reason) = self.0.extensions().get::<ReasonPhrase>() {
-            return &reason.0;
-        }
-
-        if let Some(reason) = self.0.status().canonical_reason() {
-            return reason.as_bytes();
-        }
-
-        &[]
+    if let Some(reason) = self.0.status().canonical_reason() {
+      return reason.as_bytes();
     }
+
+    &[]
+  }
 }
 
 unsafe impl AsTaskType for hyper_response {
-    fn as_task_type(&self) -> hyper_task_return_type {
-        hyper_task_return_type::HYPER_TASK_RESPONSE
-    }
+  fn as_task_type(&self) -> hyper_task_return_type { hyper_task_return_type::HYPER_TASK_RESPONSE }
 }
 
 // ===== impl Headers =====
 
-type hyper_headers_foreach_callback =
-    extern "C" fn(*mut c_void, *const u8, size_t, *const u8, size_t) -> c_int;
+type hyper_headers_foreach_callback = extern "C" fn(*mut c_void, *const u8, size_t, *const u8, size_t) -> c_int;
 
 impl hyper_headers {
-    pub(super) fn get_or_default(ext: &mut http::Extensions) -> &mut hyper_headers {
-        if let None = ext.get_mut::<hyper_headers>() {
-            ext.insert(hyper_headers {
-                headers: Default::default(),
-                orig_casing: Default::default(),
-            });
-        }
-
-        ext.get_mut::<hyper_headers>().unwrap()
+  pub(super) fn get_or_default(ext: &mut http::Extensions) -> &mut hyper_headers {
+    if let None = ext.get_mut::<hyper_headers>() {
+      ext.insert(hyper_headers { headers: Default::default(), orig_casing: Default::default() });
     }
+
+    ext.get_mut::<hyper_headers>().unwrap()
+  }
 }
 
 ffi_fn! {
@@ -350,95 +339,78 @@ ffi_fn! {
 }
 
 unsafe fn raw_name_value(
-    name: *const u8,
-    name_len: size_t,
-    value: *const u8,
-    value_len: size_t,
+  name: *const u8,
+  name_len: size_t,
+  value: *const u8,
+  value_len: size_t,
 ) -> Result<(HeaderName, HeaderValue, Bytes), hyper_code> {
-    let name = std::slice::from_raw_parts(name, name_len);
-    let orig_name = Bytes::copy_from_slice(name);
-    let name = match HeaderName::from_bytes(name) {
-        Ok(name) => name,
-        Err(_) => return Err(hyper_code::HYPERE_INVALID_ARG),
-    };
-    let value = std::slice::from_raw_parts(value, value_len);
-    let value = match HeaderValue::from_bytes(value) {
-        Ok(val) => val,
-        Err(_) => return Err(hyper_code::HYPERE_INVALID_ARG),
-    };
+  let name = std::slice::from_raw_parts(name, name_len);
+  let orig_name = Bytes::copy_from_slice(name);
+  let name = match HeaderName::from_bytes(name) {
+    Ok(name) => name,
+    Err(_) => return Err(hyper_code::HYPERE_INVALID_ARG),
+  };
+  let value = std::slice::from_raw_parts(value, value_len);
+  let value = match HeaderValue::from_bytes(value) {
+    Ok(val) => val,
+    Err(_) => return Err(hyper_code::HYPERE_INVALID_ARG),
+  };
 
-    Ok((name, value, orig_name))
+  Ok((name, value, orig_name))
 }
 
 // ===== impl HeaderCaseMap =====
 
 impl HeaderCaseMap {
-    pub(crate) fn get_all(&self, name: &HeaderName) -> http::header::GetAll<'_, Bytes> {
-        self.0.get_all(name)
-    }
+  pub(crate) fn get_all(&self, name: &HeaderName) -> http::header::GetAll<'_, Bytes> { self.0.get_all(name) }
 
-    pub(crate) fn insert(&mut self, name: HeaderName, orig: Bytes) {
-        self.0.insert(name, orig);
-    }
+  pub(crate) fn insert(&mut self, name: HeaderName, orig: Bytes) { self.0.insert(name, orig); }
 
-    pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
-    where
-        N: http::header::IntoHeaderName,
-    {
-        self.0.append(name, orig);
-    }
+  pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
+  where
+    N: http::header::IntoHeaderName, {
+    self.0.append(name, orig);
+  }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+  use super::*;
 
-    #[test]
-    fn test_headers_foreach_cases_preserved() {
-        let mut headers = hyper_headers::default();
+  #[test]
+  fn test_headers_foreach_cases_preserved() {
+    let mut headers = hyper_headers::default();
 
-        let name1 = b"Set-CookiE";
-        let value1 = b"a=b";
-        hyper_headers_add(
-            &mut headers,
-            name1.as_ptr(),
-            name1.len(),
-            value1.as_ptr(),
-            value1.len(),
-        );
+    let name1 = b"Set-CookiE";
+    let value1 = b"a=b";
+    hyper_headers_add(&mut headers, name1.as_ptr(), name1.len(), value1.as_ptr(), value1.len());
 
-        let name2 = b"SET-COOKIE";
-        let value2 = b"c=d";
-        hyper_headers_add(
-            &mut headers,
-            name2.as_ptr(),
-            name2.len(),
-            value2.as_ptr(),
-            value2.len(),
-        );
+    let name2 = b"SET-COOKIE";
+    let value2 = b"c=d";
+    hyper_headers_add(&mut headers, name2.as_ptr(), name2.len(), value2.as_ptr(), value2.len());
 
-        let mut vec = Vec::<u8>::new();
-        hyper_headers_foreach(&headers, concat, &mut vec as *mut _ as *mut c_void);
+    let mut vec = Vec::<u8>::new();
+    hyper_headers_foreach(&headers, concat, &mut vec as *mut _ as *mut c_void);
 
-        assert_eq!(vec, b"Set-CookiE: a=b\r\nSET-COOKIE: c=d\r\n");
+    assert_eq!(vec, b"Set-CookiE: a=b\r\nSET-COOKIE: c=d\r\n");
 
-        extern "C" fn concat(
-            vec: *mut c_void,
-            name: *const u8,
-            name_len: usize,
-            value: *const u8,
-            value_len: usize,
-        ) -> c_int {
-            unsafe {
-                let vec = &mut *(vec as *mut Vec<u8>);
-                let name = std::slice::from_raw_parts(name, name_len);
-                let value = std::slice::from_raw_parts(value, value_len);
-                vec.extend(name);
-                vec.extend(b": ");
-                vec.extend(value);
-                vec.extend(b"\r\n");
-            }
-            HYPER_ITER_CONTINUE
-        }
+    extern "C" fn concat(
+      vec: *mut c_void,
+      name: *const u8,
+      name_len: usize,
+      value: *const u8,
+      value_len: usize,
+    ) -> c_int {
+      unsafe {
+        let vec = &mut *(vec as *mut Vec<u8>);
+        let name = std::slice::from_raw_parts(name, name_len);
+        let value = std::slice::from_raw_parts(value, value_len);
+        vec.extend(name);
+        vec.extend(b": ");
+        vec.extend(value);
+        vec.extend(b"\r\n");
+      }
+      HYPER_ITER_CONTINUE
     }
+  }
 }

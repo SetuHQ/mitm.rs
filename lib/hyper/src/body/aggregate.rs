@@ -15,17 +15,16 @@ use crate::common::buf::BufList;
 /// `Content-Length` is a possibility, but it is not strictly mandated to be present.
 pub async fn aggregate<T>(body: T) -> Result<impl Buf, T::Error>
 where
-    T: HttpBody,
-{
-    let mut bufs = BufList::new();
+  T: HttpBody, {
+  let mut bufs = BufList::new();
 
-    futures_util::pin_mut!(body);
-    while let Some(buf) = body.data().await {
-        let buf = buf?;
-        if buf.has_remaining() {
-            bufs.push(buf);
-        }
+  futures_util::pin_mut!(body);
+  while let Some(buf) = body.data().await {
+    let buf = buf?;
+    if buf.has_remaining() {
+      bufs.push(buf);
     }
+  }
 
-    Ok(bufs)
+  Ok(bufs)
 }

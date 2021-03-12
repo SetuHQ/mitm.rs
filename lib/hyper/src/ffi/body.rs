@@ -17,16 +17,15 @@ pub struct hyper_body(pub(super) Body);
 pub struct hyper_buf(pub(super) Bytes);
 
 pub(crate) struct UserBody {
-    data_func: hyper_body_data_callback,
-    userdata: *mut c_void,
+  data_func: hyper_body_data_callback,
+  userdata:  *mut c_void,
 }
 
 // ===== Body =====
 
 type hyper_body_foreach_callback = extern "C" fn(*mut c_void, *const hyper_buf) -> c_int;
 
-type hyper_body_data_callback =
-    extern "C" fn(*mut c_void, *mut hyper_context<'_>, *mut *mut hyper_buf) -> c_int;
+type hyper_body_data_callback = extern "C" fn(*mut c_void, *mut hyper_context<'_>, *mut *mut hyper_buf) -> c_int;
 
 ffi_fn! {
     /// Create a new "empty" body.
@@ -137,50 +136,38 @@ ffi_fn! {
 // ===== impl UserBody =====
 
 impl UserBody {
-    pub(crate) fn new() -> UserBody {
-        UserBody {
-            data_func: data_noop,
-            userdata: std::ptr::null_mut(),
-        }
-    }
+  pub(crate) fn new() -> UserBody { UserBody { data_func: data_noop, userdata: std::ptr::null_mut() } }
 
-    pub(crate) fn poll_data(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
-        let mut out = std::ptr::null_mut();
-        match (self.data_func)(self.userdata, hyper_context::wrap(cx), &mut out) {
-            super::task::HYPER_POLL_READY => {
-                if out.is_null() {
-                    Poll::Ready(None)
-                } else {
-                    let buf = unsafe { Box::from_raw(out) };
-                    Poll::Ready(Some(Ok(buf.0)))
-                }
-            }
-            super::task::HYPER_POLL_PENDING => Poll::Pending,
-            super::task::HYPER_POLL_ERROR => {
-                Poll::Ready(Some(Err(crate::Error::new_body_write_aborted())))
-            }
-            unexpected => Poll::Ready(Some(Err(crate::Error::new_body_write(format!(
-                "unexpected hyper_body_data_func return code {}",
-                unexpected
-            ))))),
+  pub(crate) fn poll_data(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
+    let mut out = std::ptr::null_mut();
+    match (self.data_func)(self.userdata, hyper_context::wrap(cx), &mut out) {
+      super::task::HYPER_POLL_READY => {
+        if out.is_null() {
+          Poll::Ready(None)
+        } else {
+          let buf = unsafe { Box::from_raw(out) };
+          Poll::Ready(Some(Ok(buf.0)))
         }
+      }
+      super::task::HYPER_POLL_PENDING => Poll::Pending,
+      super::task::HYPER_POLL_ERROR => Poll::Ready(Some(Err(crate::Error::new_body_write_aborted()))),
+      unexpected => {
+        Poll::Ready(Some(Err(crate::Error::new_body_write(format!(
+          "unexpected hyper_body_data_func return code {}",
+          unexpected
+        )))))
+      }
     }
+  }
 
-    pub(crate) fn poll_trailers(
-        &mut self,
-        _cx: &mut Context<'_>,
-    ) -> Poll<crate::Result<Option<HeaderMap>>> {
-        Poll::Ready(Ok(None))
-    }
+  pub(crate) fn poll_trailers(&mut self, _cx: &mut Context<'_>) -> Poll<crate::Result<Option<HeaderMap>>> {
+    Poll::Ready(Ok(None))
+  }
 }
 
 /// cbindgen:ignore
-extern "C" fn data_noop(
-    _userdata: *mut c_void,
-    _: *mut hyper_context<'_>,
-    _: *mut *mut hyper_buf,
-) -> c_int {
-    super::task::HYPER_POLL_READY
+extern "C" fn data_noop(_userdata: *mut c_void, _: *mut hyper_context<'_>, _: *mut *mut hyper_buf) -> c_int {
+  super::task::HYPER_POLL_READY
 }
 
 unsafe impl Send for UserBody {}
@@ -229,7 +216,5 @@ ffi_fn! {
 }
 
 unsafe impl AsTaskType for hyper_buf {
-    fn as_task_type(&self) -> hyper_task_return_type {
-        hyper_task_return_type::HYPER_TASK_BUF
-    }
+  fn as_task_type(&self) -> hyper_task_return_type { hyper_task_return_type::HYPER_TASK_BUF }
 }

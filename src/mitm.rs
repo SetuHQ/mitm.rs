@@ -9,6 +9,8 @@ use bytes::Bytes;
 use colored::*;
 use futures_util::future::try_join;
 use futures_util::{FutureExt, TryFutureExt};
+use hyper::client::client::ClientError;
+use hyper::client::pool::Key as PoolKey;
 use hyper::client::HttpConnector;
 use hyper::http::uri::{self, Authority, Scheme};
 use hyper::http::{StatusCode, Uri};
@@ -25,11 +27,12 @@ use rustls::ClientConfig;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt, BufStream};
 use tokio::net::TcpStream;
 use tokio_native_tls::{native_tls, TlsConnector};
-use tokio_rustls::{Accept, TlsAcceptor, TlsStream};
+use tokio_rustls::server::TlsStream;
+use tokio_rustls::{Accept, TlsAcceptor};
 
 use crate::util::args::Args;
 use crate::util::cert::{mk_ca_cert, mk_ca_signed_cert, read_cert, read_pkey, verify, CertPair, CERTIFICATES};
-use crate::util::tls::tls_config;
+use crate::util::tls::{client_config, tls_config};
 use crate::util::util::print_type_of;
 
 
@@ -57,7 +60,6 @@ pub async fn listen(args: Args, ca: CertPair) {
           *failure.status_mut() = StatusCode::BAD_REQUEST;
           // MITM the request
           let response = mitm(req, args, ca).await.unwrap_or(failure);
-
           return Ok::<_, Infallible>(response);
         }
       }));
@@ -73,220 +75,141 @@ pub async fn listen(args: Args, ca: CertPair) {
   }
 }
 
-async fn mitm(req: Request<Body>, args: Args, ca: CertPair) -> Result<Response<Body>, hyper::Error> {
-  println!("Impersonating {}", req.uri().to_string().red());
-  let host = format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
+async fn mitm(req: Request<Body>, args: Args, ca: CertPair) -> Result<Response<Body>, Error> {
+  let host: &str = &format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
 
+  // Service a TLS CONNECT request
   if Method::CONNECT == req.method() {
     println!("Received a CONNECT request for {}", host.red());
-
-    // Prepare: get TLS config with impersonating certs, sort out the target URI
-    let authority = req.uri().authority().unwrap();
-    let tls_conf = tls_config(authority, |auth| mk_ca_signed_cert(&ca.cert, &ca.key, authority));
-    let uri = uri::Builder::new().scheme("https").authority(authority.clone()).path_and_query("/").build().unwrap();
-
-    // Configure TLS
-    let mut client_config = ClientConfig::new();
-    // .set_single_client_cert() // TODO: Add client certificates here
-    // Load system certificates
-    client_config.root_store = match rustls_native_certs::load_native_certs() {
-      Ok(store) => store,
-      Err((Some(store), err)) => {
-        println!("Could not load all certificates: {:?}", err);
-        store
-      }
-      Err((None, err)) => Err(err).expect("cannot access native cert store"),
-    };
-    client_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-
-    // Get a TLS connection to the target
-    let mut http = HttpConnector::new();
-    http.enforce_http(false);
-    let mut connector = HttpsConnector::from((http, client_config));
-    let mut client: Client<HttpsConnector<HttpConnector>, Body> = Client::builder().build(connector.clone());
-
-    // let mut request: Vec<u8> = Vec::with_capacity(10000);
-    // let mut connection = connector.call(uri).await;
-
-    // let connection = client.connection_for(uri);
-
-
-    // connection.read_buf(&mut request);
-
-    // println!("connection: {:?}", request);
-    // print_type_of(&connection);
-
-    // connection.map(|conn| {
-    //   async {
-    //     println!("{}", "Could not upgrade client connection".red());
-
-    //     hyper::upgrade::on(req)
-    //       .await
-    //       .map_err(|e| {
-    //         println!("{}", "Could not upgrade client connection".red());
-    //         Error::new(ErrorKind::Other, e)
-    //       })
-    //       .map(|upgraded: Upgraded| -> Accept<Upgraded> {
-    //         println!("***********************************************");
-    //         TlsAcceptor::from(tls_conf).accept(upgraded)
-    //       })
-    //       .map(move |stream| {
-    //         println!("proxy_connect() tls connection established with proxy client: {:?}", "lol");
-    //         // service_inner_requests::<T>(stream)
-    //       });
-    //   }
-    // });
-
-    // connection.map(|_x| async {
-    //   // upgrade the connection to client
-    //   println!("Upgrading");
-    //   hyper::upgrade::on(req).await.map_err(|e| {
-    //     println!("{}", "Could not upgrade client connection".red());
-    //     Error::new(ErrorKind::Other, e)
-    //   })
-    //   .map(|upgraded: Upgraded| -> Accept<Upgraded> {
-    //     println!("***********************************************");
-    //     TlsAcceptor::from(tls_conf).accept(upgraded)
-    //   })
-    //   .map(move |stream| {
-    //     println!("proxy_connect() tls connection established with proxy client: {:?}", "lol");
-    //     // service_inner_requests::<T>(stream)
-    //   })
-    // });
-
-    // println!("{:?}", &connection);
-    // print_type_of(&connection);
-
-    // let connect_response =
-    //   handle_connect_request(req).unwrap_or(Body::from("Error: Could not perform the CONNECT protocol handshake."));
-
-    Ok(Response::new(Body::from("lol")))
+    handle_connect_request(req, args, ca).await
   } else {
-    // Bare HTTP request, just log and move on
-    // match req.uri().scheme() {
-    //     Some(&Scheme::HTTPS) => {
-    //         let mut tls_conn_builder = TlsConnector::builder().identity();
-    //         tls_conn_builder.identity(cert);
-    //         // let tls_conn = tls_conn_builder.build().unwrap();
-    //     }
-    //     Some(&Scheme::HTTP) => {
-    //         let client = Client::new();
-    //         client.request(req).await
-    //     }
-    // }
-    Ok(Response::new(Body::from("Not implemented yet")))
+    println!("MITM-ing request from {}", host.red());
+    Ok(handle_proxy_request(req, args, ca).await)
   }
 }
 
-fn handle_connect_request(req: Request<Body>) -> Option<Body> {
-  let host: String = req.uri().authority().and_then(|auth| auth.as_str().parse().ok()).unwrap();
+async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) -> Result<Response<Body>, Error> {
+  let host: &str = &format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
 
-  // upgrade the connection
-  // see https://en.wikipedia.org/wiki/HTTP/1.1_Upgrade_header
-  tokio::task::spawn(async move {
-    match hyper::upgrade::on(req).await {
-      Ok(upgraded) => {
-        if let Err(e) = tunnel(upgraded, host).await {
-          eprintln!("server io error: {}", e);
-        };
-      }
-      Err(e) => eprintln!("upgrade error: {}", e),
-    }
+  // Prepare: get TLS config with impersonating certs, sort out the target URI
+  let authority = req.uri().authority().unwrap();
+  let tls_conf = tls_config(authority, |auth| mk_ca_signed_cert(&ca.cert, &ca.key, authority));
+
+  // Build a client with TLS config
+  let client_conf = client_config(host);
+  let mut http = HttpConnector::new();
+  http.enforce_http(false);
+  // let mut connector = ;
+  let mut client: Client<HttpsConnector<HttpConnector>, Body> =
+    Client::builder().build(HttpsConnector::from((http, client_conf)));
+
+  // 1. Perform TLS handshake with the target
+  return client.connection_for((
+    req.uri().scheme().unwrap_or(&Scheme::from_str("https").unwrap()).clone(),
+    req.uri().authority().unwrap().clone()
+  ))
+  .map_err(|e| {
+    Error::new(ErrorKind::Other, format!("Could not obtain TLS connection to {}", host.red()))
+  })
+  .await
+  // 2. Upgrade the HTTP connection from the client
+  .map(move |_whatever| {
+    let job = hyper::upgrade::on(req)
+      .map_err(|e| {
+        Error::new(ErrorKind::Other, format!("Could not upgrade connection"))
+      })
+      // 3. Perform the TLS handshake with the client
+      .and_then(|upgraded:Upgraded| {
+        println!("Connection upgraded with client");
+        TlsAcceptor::from(tls_conf).accept(upgraded)
+      })
+      // 4. Handle the underlying HTTP request
+      .map(|accepted| {
+        println!("Established CONNECT TLS connection with client");
+        handle_https_proxy_request(accepted, args, ca)
+      });
+
+    tokio::task::spawn(job);
+    Response::builder().status(200).body(Body::empty()).unwrap()
+  })
+  .or_else(|x| {
+    println!("Failed to perform the CONNECT protocol for {}", host.red());
+    Ok(Response::builder().status(502).body(Body::empty()).unwrap())
   });
-
-  Some(Body::from("lol"))
 }
 
-// async fn mitm_tls_connection(host: &str, port:&str) {
-//   let authority = Authority::from_shared(Bytes::from(connect_req.uri().to_string())).unwrap();
-// }
+async fn handle_proxy_request(req: Request<Body>, args: Args, ca: CertPair) -> Response<Body> {
+  let host: &str = &format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
 
-// Create a TCP connection to host:port, build a tunnel between the connection and
-// the upgraded connection
-async fn tunnel(upgraded: Upgraded, host: String) -> std::io::Result<()> {
-  // Connect to remote server
-  let mut server = TcpStream::connect(host.clone()).await.unwrap();
+  // Prepare: get TLS config with impersonating certs, sort out the target URI
+  let authority = req.uri().authority().unwrap();
+  let tls_conf = tls_config(authority, |auth| mk_ca_signed_cert(&ca.cert, &ca.key, authority));
 
-  // set up TLS connection:
-  // 1. request TLS cert from target
-  // 2. create and sign cert by spoofing target cert using mitm CA cert
-  // let connector = native_tls::TlsConnector::builder().build().unwrap();
-  // let tokio_connector = tokio_native_tls::TlsConnector::from(connector);
-  // let mut target_stream = tokio_connector.connect(&host, server).await.unwrap();
-  // let certificate = &target_stream.get_ref().peer_certificate().unwrap();
-  // let certificate = match certificate {
-  //   Some(cert) => cert,
-  //   None => {
-  //     return Err(Error::new(ErrorKind::Other, "oh no!"))
-  //   }
-  // };
-  // let certificate = X509::from_der(&certificate.to_der().unwrap()).unwrap();
+  // Build a client with TLS config
+  let client_conf = client_config(host);
+  let mut http = HttpConnector::new();
+  http.enforce_http(false);
+  // let mut connector = ;
+  let mut client: Client<HttpsConnector<HttpConnector>, Body> =
+    Client::builder().build(HttpsConnector::from((http, client_conf)));
 
-  // println!("{}", String::from_utf8_lossy(certificate.to_pem().unwrap().as_slice()));
+  // 1. Perform TLS handshake with the target
+  let mut pool = client
+    .connection_for((
+      req.uri().scheme().unwrap_or(&Scheme::from_str("https").unwrap()).clone(),
+      req.uri().authority().unwrap().clone(),
+    ))
+    .await
+    .ok()
+    .unwrap();
 
-  // Proxying data
-  // let amounts = {
-  //   let (mut server_rd, mut server_wr) = server.split();
-  //   let (mut client_rd, mut client_wr) = tokio::io::split(upgraded);
+  let uri = req.uri();
+  let (parts, body) = req.into_parts();
+  println!("MITMed request: {:?} {:?}", parts, body);
+  let modified_req = Request::from_parts(parts, body);
 
-  //   // FIXME: arbitrary static size
-  //   let mut request: Vec<u8> = Vec::with_capacity(10000);
-  //   let mut response: Vec<u8> = Vec::with_capacity(10000);
-  //   // let mut _request = BufStream::new();
-  //   // let mut _response = BufStream::new();
-  //   // let (mut request_r, mut request_w) = io::duplex(1000);
-  //   // let (mut response_r, mut response_w) = io::duplex(1000);
-  //   // let response = io::empty();
+  let response = pool.send_request_retryable(modified_req).await.ok().unwrap();
+  let (resp_parts, resp_body) = response.into_parts();
+  println!("MITMed response: {:?} {:?}", resp_parts, resp_body);
+  let modified_resp = Response::from_parts(resp_parts, resp_body);
 
-  //   let client_to_mitm = client_rd.read_buf(&mut request).await.unwrap();
-  //   // let client_to_server = server_wr.write_buf(&mut request.as_slice()).await.unwrap();
-  //   // let client_to_mitm = tokio::io::copy(&mut client_rd, &mut request_w);
-  //   // let client_to_server = tokio::io::copy(&mut request_r, &mut server_wr);
-  //   // let from_client = try_join(client_to_mitm, client_to_server).await;
+  modified_resp
+}
 
-  //   // let server_to_mitm = server_rd.read_buf(&mut response).await.unwrap();
-  //   // let server_to_client = client_wr.write_buf(&mut response.as_slice()).await.unwrap();
-  //   // let server_to_mitm = tokio::io::copy(&mut server_rd, &mut response_w);
-  //   // let server_to_client = tokio::io::copy(&mut response_r, &mut client_wr);
-  //   // let from_server = try_join(server_to_mitm, server_to_client).await;
+// Option<Body>
+fn handle_https_proxy_request(req: Result<TlsStream<Upgraded>, Error>, args: Args, ca: CertPair) -> () {
+  let svc = service_fn(move |req: Request<Body>| {
+    let authority = req.headers().get("host").unwrap().to_str().unwrap();
 
+    let uri = http::uri::Builder::new()
+      .scheme("https")
+      .authority(authority)
+      .path_and_query(&req.uri().to_string() as &str)
+      .build()
+      .unwrap();
 
-  //   // println!("{} {} ", client_to_mitm, client_to_server);
-  //   // println!("{} {} {} {}", client_to_mitm, client_to_server, server_to_mitm, server_to_client);
-  //   // let req = String::from_utf8_lossy(&request);
-  //   // let resp = String::from_utf8_lossy(&response);
-  //   // println!("result: {} \n====================================\n {}", req, resp);
+    let (mut parts, body) = req.into_parts();
+    parts.uri = uri;
+    let req = Request::from_parts(parts, body);
 
-  //   // let s = String::from_utf8_lossy(&request);
-  //   // println!("result: {}", s);
+    handle_proxy_request(req, args.clone(), ca.clone())
+  });
 
-  //   let client_to_server = tokio::io::copy(&mut client_rd, &mut server_wr);
-  //   // let server_to_client = tokio::io::copy(&mut server_rd, &mut client_wr);
-  //   // let copied_data = try_join(client_to_server, server_to_client).await;
-
-  //   // // let request = BufStream::new()
-  //   // copied_data.map(|(_out, _in)| {
-  //   //   let mut request:&[u8] = Vec::with_capacity(_out as usize).as_slice();
-  //   //   let mut response:&[u8] = Vec::with_capacity(_in as usize).as_slice();
-
-  //   //   // tokio::io::copy(&mut client_rd, &mut request);
-  //   //   let mut buffer = String::new();
-  //   //   client_rd.read_to_string(&mut buffer);
-  //   //   println!("{} -------------------------------", buffer);
-
-  //   //   (_out, _in)
-  //   // })
-  // };
-
-  // Print message when done
-  // match amounts {
-  //   Ok((from_client, from_server)) => {
-  //     println!("client wrote {} bytes and received {} bytes", from_client, from_server);
-  //   }
-  //   Err(e) => {
-  //     println!("tunnel error: {}", e);
-  //   }
-  // };
-
-  Ok(())
+  // Http::new().serve_connection(req, svc)
+  //   .map_err(|e: hyper::Error| {
+  //     if match e.source() {
+  //       Some(source) => source
+  //         .to_string()
+  //         .find("Connection reset by peer")
+  //         .is_some(),
+  //       None => false,
+  //     } {
+  //       info!(
+  //         "service_inner_requests() serve_connection: \
+  //          client closed connection"
+  //       );
+  //     } else {
+  //       error!("service_inner_requests() serve_connection: {}", e);
+  //     };
+  //   })
 }

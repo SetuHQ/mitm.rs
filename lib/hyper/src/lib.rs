@@ -1,5 +1,5 @@
 #![doc(html_root_url = "https://docs.rs/hyper/0.14.4")]
-#![deny(missing_docs)]
+#![allow(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(test, deny(rust_2018_idioms))]
 #![cfg_attr(all(test, feature = "full"), deny(unreachable_pub))]
@@ -50,8 +50,8 @@
 //! - `http2`: Enables HTTP/2 support.
 //! - `client`: Enables the HTTP `client`.
 //! - `server`: Enables the HTTP `server`.
-//! - `runtime`: Enables convenient integration with `tokio`, providing
-//!   connectors and acceptors for TCP, and a default executor.
+//! - `runtime`: Enables convenient integration with `tokio`, providing connectors and acceptors for TCP, and a default
+//!   executor.
 //! - `tcp`: Enables convenient implementations over TCP (using tokio).
 //! - `stream`: Provides `futures::Stream` capabilities.
 //!
@@ -59,11 +59,7 @@
 
 #[doc(hidden)]
 pub use http;
-#[cfg(any(
-    feature = "http1",
-    feature = "http2",
-    all(feature = "client", feature = "tcp")
-))]
+#[cfg(any(feature = "http1", feature = "http2", all(feature = "client", feature = "tcp")))]
 #[macro_use]
 extern crate tracing;
 

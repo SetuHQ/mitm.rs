@@ -7,17 +7,14 @@
 //!
 //! There are two pieces to this in hyper:
 //!
-//! - **The [`HttpBody`](HttpBody) trait** describes all possible bodies.
-//!   hyper allows any body type that implements `HttpBody`, allowing
-//!   applications to have fine-grained control over their streaming.
-//! - **The [`Body`](Body) concrete type**, which is an implementation of
-//!   `HttpBody`, and returned by hyper as a "receive stream" (so, for server
-//!   requests and client responses). It is also a decent default implementation
-//!   if you don't have very custom needs of your send streams.
+//! - **The [`HttpBody`](HttpBody) trait** describes all possible bodies. hyper allows any body type that implements
+//!   `HttpBody`, allowing applications to have fine-grained control over their streaming.
+//! - **The [`Body`](Body) concrete type**, which is an implementation of `HttpBody`, and returned by hyper as a
+//!   "receive stream" (so, for server requests and client responses). It is also a decent default implementation if you
+//!   don't have very custom needs of your send streams.
 
 pub use bytes::{Buf, Bytes};
-pub use http_body::Body as HttpBody;
-pub use http_body::SizeHint;
+pub use http_body::{Body as HttpBody, SizeHint};
 
 pub use self::aggregate::aggregate;
 pub use self::body::{Body, Sender};
@@ -34,32 +31,26 @@ mod to_bytes;
 /// This is currently limited to *only* `hyper::Body`s.
 #[cfg(feature = "http1")]
 pub(crate) fn take_full_data<T: HttpBody + 'static>(body: &mut T) -> Option<T::Data> {
-    use std::any::{Any, TypeId};
+  use std::any::{Any, TypeId};
 
-    // This static type check can be optimized at compile-time.
-    if TypeId::of::<T>() == TypeId::of::<Body>() {
-        let mut full = (body as &mut dyn Any)
-            .downcast_mut::<Body>()
-            .expect("must be Body")
-            .take_full_data();
-        // This second cast is required to make the type system happy.
-        // Without it, the compiler cannot reason that the type is actually
-        // `T::Data`. Oh wells.
-        //
-        // It's still a measurable win!
-        (&mut full as &mut dyn Any)
-            .downcast_mut::<Option<T::Data>>()
-            .expect("must be T::Data")
-            .take()
-    } else {
-        None
-    }
+  // This static type check can be optimized at compile-time.
+  if TypeId::of::<T>() == TypeId::of::<Body>() {
+    let mut full = (body as &mut dyn Any).downcast_mut::<Body>().expect("must be Body").take_full_data();
+    // This second cast is required to make the type system happy.
+    // Without it, the compiler cannot reason that the type is actually
+    // `T::Data`. Oh wells.
+    //
+    // It's still a measurable win!
+    (&mut full as &mut dyn Any).downcast_mut::<Option<T::Data>>().expect("must be T::Data").take()
+  } else {
+    None
+  }
 }
 
 fn _assert_send_sync() {
-    fn _assert_send<T: Send>() {}
-    fn _assert_sync<T: Sync>() {}
+  fn _assert_send<T: Send>() {}
+  fn _assert_sync<T: Sync>() {}
 
-    _assert_send::<Body>();
-    _assert_sync::<Body>();
+  _assert_send::<Body>();
+  _assert_sync::<Body>();
 }

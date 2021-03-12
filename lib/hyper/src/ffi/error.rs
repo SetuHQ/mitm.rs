@@ -6,53 +6,52 @@ pub struct hyper_error(crate::Error);
 /// A return code for many of hyper's methods.
 #[repr(C)]
 pub enum hyper_code {
-    /// All is well.
-    HYPERE_OK,
-    /// General error, details in the `hyper_error *`.
-    HYPERE_ERROR,
-    /// A function argument was invalid.
-    HYPERE_INVALID_ARG,
-    /// The IO transport returned an EOF when one wasn't expected.
-    ///
-    /// This typically means an HTTP request or response was expected, but the
-    /// connection closed cleanly without sending (all of) it.
-    HYPERE_UNEXPECTED_EOF,
-    /// Aborted by a user supplied callback.
-    HYPERE_ABORTED_BY_CALLBACK,
-    /// An optional hyper feature was not enabled.
-    #[cfg_attr(feature = "http2", allow(unused))]
-    HYPERE_FEATURE_NOT_ENABLED,
-    /// The peer sent an HTTP message that could not be parsed.
-    HYPERE_INVALID_PEER_MESSAGE,
+  /// All is well.
+  HYPERE_OK,
+  /// General error, details in the `hyper_error *`.
+  HYPERE_ERROR,
+  /// A function argument was invalid.
+  HYPERE_INVALID_ARG,
+  /// The IO transport returned an EOF when one wasn't expected.
+  ///
+  /// This typically means an HTTP request or response was expected, but the
+  /// connection closed cleanly without sending (all of) it.
+  HYPERE_UNEXPECTED_EOF,
+  /// Aborted by a user supplied callback.
+  HYPERE_ABORTED_BY_CALLBACK,
+  /// An optional hyper feature was not enabled.
+  #[cfg_attr(feature = "http2", allow(unused))]
+  HYPERE_FEATURE_NOT_ENABLED,
+  /// The peer sent an HTTP message that could not be parsed.
+  HYPERE_INVALID_PEER_MESSAGE,
 }
 
 // ===== impl hyper_error =====
 
 impl hyper_error {
-    fn code(&self) -> hyper_code {
-        use crate::error::Kind as ErrorKind;
-        use crate::error::User;
+  fn code(&self) -> hyper_code {
+    use crate::error::{Kind as ErrorKind, User};
 
-        match self.0.kind() {
-            ErrorKind::Parse(_) => hyper_code::HYPERE_INVALID_PEER_MESSAGE,
-            ErrorKind::IncompleteMessage => hyper_code::HYPERE_UNEXPECTED_EOF,
-            ErrorKind::User(User::AbortedByCallback) => hyper_code::HYPERE_ABORTED_BY_CALLBACK,
-            // TODO: add more variants
-            _ => hyper_code::HYPERE_ERROR,
-        }
+    match self.0.kind() {
+      ErrorKind::Parse(_) => hyper_code::HYPERE_INVALID_PEER_MESSAGE,
+      ErrorKind::IncompleteMessage => hyper_code::HYPERE_UNEXPECTED_EOF,
+      ErrorKind::User(User::AbortedByCallback) => hyper_code::HYPERE_ABORTED_BY_CALLBACK,
+      // TODO: add more variants
+      _ => hyper_code::HYPERE_ERROR,
     }
+  }
 
-    fn print_to(&self, dst: &mut [u8]) -> usize {
-        use std::io::Write;
+  fn print_to(&self, dst: &mut [u8]) -> usize {
+    use std::io::Write;
 
-        let mut dst = std::io::Cursor::new(dst);
+    let mut dst = std::io::Cursor::new(dst);
 
-        // A write! error doesn't matter. As much as possible will have been
-        // written, and the Cursor position will know how far that is (even
-        // if that is zero).
-        let _ = write!(dst, "{}", &self.0);
-        dst.position() as usize
-    }
+    // A write! error doesn't matter. As much as possible will have been
+    // written, and the Cursor position will know how far that is (even
+    // if that is zero).
+    let _ = write!(dst, "{}", &self.0);
+    dst.position() as usize
+  }
 }
 
 ffi_fn! {
