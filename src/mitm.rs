@@ -3,10 +3,11 @@ use std::convert::{Infallible, TryInto};
 use std::io::{Error, ErrorKind};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
 use colored::*;
+use futures::future::{self, Future};
 use futures_util::future::try_join;
 use futures_util::{FutureExt, TryFutureExt};
 use hyper::client::client::ClientError;
@@ -19,7 +20,8 @@ use hyper::service::{make_service_fn, service_fn, Service};
 use hyper::upgrade::Upgraded;
 use hyper::{http, upgrade, Body, Client, Method, Request, Response, Server};
 use hyper_rustls::{HttpsConnector, MaybeHttpsStream};
-use lazy_static::__Deref;
+use lazy_static::{__Deref, lazy_static};
+use lru_cache::LruCache;
 // TLS
 use openssl::pkey::{PKey, PKeyRef, Private};
 use openssl::x509::X509;
@@ -36,10 +38,18 @@ use crate::util::tls::{client_config, tls_config};
 use crate::util::util::print_type_of;
 
 
+lazy_static! {
+  // pub static ref ARGS: Mutex<Args> = Mutex::new(Args::new());
+  static ref ARGS: Mutex<LruCache<String, Arc<Args>>> = Mutex::new(LruCache::new(1000));
+  static ref CA: Mutex<LruCache<String, Arc<CertPair>>> = Mutex::new(LruCache::new(1000));
+}
+
 #[tokio::main]
 // Create an mitm listener
 pub async fn listen(args: Args, ca: CertPair) {
   let addr = SocketAddr::new(args.host.parse::<IpAddr>().unwrap(), args.port.try_into().unwrap());
+  ARGS.lock().unwrap().insert("args".to_string(), Arc::new(args.clone()));
+  CA.lock().unwrap().insert("ca".to_string(), Arc::new(ca.clone()));
 
   let make_svc = make_service_fn(|socket: &AddrStream| {
     let remote_addr = socket.remote_addr();
@@ -84,7 +94,8 @@ async fn mitm(req: Request<Body>, args: Args, ca: CertPair) -> Result<Response<B
     handle_connect_request(req, args, ca).await
   } else {
     println!("MITM-ing request from {}", host.red());
-    Ok(handle_proxy_request(req, args, ca).await)
+    let args = Arc::new(args);
+    Ok(handle_proxy_request(req).await)
   }
 }
 
@@ -126,7 +137,7 @@ async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) ->
       // 4. Handle the underlying HTTP request
       .map(|accepted| {
         println!("Established CONNECT TLS connection with client");
-        handle_https_proxy_request(accepted, args, ca)
+        handle_https_proxy_request(accepted)
       });
 
     tokio::task::spawn(job);
@@ -138,8 +149,11 @@ async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) ->
   });
 }
 
-async fn handle_proxy_request(req: Request<Body>, args: Args, ca: CertPair) -> Response<Body> {
+async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
   let host: &str = &format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
+
+  let args = ARGS.lock().unwrap().get_mut("args").unwrap().clone();
+  let ca = CA.lock().unwrap().get_mut("ca").unwrap().clone();
 
   // Prepare: get TLS config with impersonating certs, sort out the target URI
   let authority = req.uri().authority().unwrap();
@@ -177,39 +191,28 @@ async fn handle_proxy_request(req: Request<Body>, args: Args, ca: CertPair) -> R
 }
 
 // Option<Body>
-fn handle_https_proxy_request(req: Result<TlsStream<Upgraded>, Error>, args: Args, ca: CertPair) -> () {
+fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) -> () {
   let svc = service_fn(move |req: Request<Body>| {
-    let authority = req.headers().get("host").unwrap().to_str().unwrap();
+    async move {
+      let authority = req.headers().get("host").unwrap().to_str().unwrap();
 
-    let uri = http::uri::Builder::new()
-      .scheme("https")
-      .authority(authority)
-      .path_and_query(&req.uri().to_string() as &str)
-      .build()
-      .unwrap();
+      let uri = http::uri::Builder::new()
+        .scheme("https")
+        .authority(authority)
+        .path_and_query(&req.uri().to_string() as &str)
+        .build()
+        .unwrap();
 
-    let (mut parts, body) = req.into_parts();
-    parts.uri = uri;
-    let req = Request::from_parts(parts, body);
+      let (mut parts, body) = req.into_parts();
+      parts.uri = uri;
+      let req = Request::from_parts(parts, body);
 
-    handle_proxy_request(req, args.clone(), ca.clone())
+      let response: Response<Body> = handle_proxy_request(req).await;
+      Ok::<_, hyper::Error>(response)
+    }
   });
 
-  // Http::new().serve_connection(req, svc)
-  //   .map_err(|e: hyper::Error| {
-  //     if match e.source() {
-  //       Some(source) => source
-  //         .to_string()
-  //         .find("Connection reset by peer")
-  //         .is_some(),
-  //       None => false,
-  //     } {
-  //       info!(
-  //         "service_inner_requests() serve_connection: \
-  //          client closed connection"
-  //       );
-  //     } else {
-  //       error!("service_inner_requests() serve_connection: {}", e);
-  //     };
-  //   })
+  Http::new().serve_connection(stream.unwrap(), svc).map_err(|e: hyper::Error| {
+    println!("Error in serving http conection inside TLS tunnel");
+  });
 }

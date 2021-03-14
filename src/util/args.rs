@@ -31,6 +31,23 @@ pub struct Args {
   pub basic_auth_password: Option<String>,
 }
 
+impl Args {
+  pub fn new() -> Args {
+    Args {
+      ca_cert:             Some("".to_string()),
+      ca_privkey:          Some("".to_string()),
+      host:                "".to_string(),
+      port:                0,
+      client_key:          Some(Vec::new()),
+      client_cert:         Some(Vec::new()),
+      client_host:         Some(Vec::new()),
+      log_file:            "".to_string(),
+      basic_auth_user:     Some("".to_string()),
+      basic_auth_password: Some("".to_string()),
+    }
+  }
+}
+
 fn default_host() -> String { "127.0.0.1".to_string() }
 
 fn default_port() -> u32 { 8080 }
