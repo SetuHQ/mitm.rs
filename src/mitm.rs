@@ -115,7 +115,7 @@ async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) ->
   let mut client: Client<HttpsConnector<HttpConnector>, Body> =
     Client::builder().build(HttpsConnector::from((http, client_conf)));
 
-  // 1. Perform TLS handshake with the target
+  // 1. Get TCP connection pool for target
   return client.connection_for((
     req.uri().scheme().unwrap_or(&Scheme::from_str("https").unwrap()).clone(),
     req.uri().authority().unwrap().clone()
@@ -126,27 +126,29 @@ async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) ->
   .await
   // 2. Upgrade the HTTP connection from the client
   .map(move |_whatever| {
+    // 3. Service the HTTP request inside the TCP tunnel
     let job = hyper::upgrade::on(req)
       .map_err(|e| {
-        Error::new(ErrorKind::Other, format!("Could not upgrade connection"))
+        Error::new(ErrorKind::Other, format!("Could not upgrade connection: {}", e))
       })
-      // 3. Perform the TLS handshake with the client
+      // 4. Perform the TLS handshake with the client
       .and_then(|upgraded:Upgraded| {
         println!("✅ Connection upgraded with client");
         TlsAcceptor::from(tls_conf).accept(upgraded)
       })
-      // 4. Handle the underlying HTTP request
+      // 5. Handle the underlying HTTP request
       .map(|accepted| {
         println!("✅ Established CONNECT TLS connection with client: {:?}", accepted);
         handle_https_proxy_request(accepted)
-      });
+      })
+      .flatten();
 
     tokio::task::spawn(job);
     println!("✅ {}: Accepting the CONNECT request", host.red());
     Response::builder().status(200).body(Body::empty()).unwrap()
   })
   .or_else(|x| {
-    println!("❌ {}: Failed to perform the CONNECT protocol", host.red());
+    println!("❌ {}: Failed to perform the CONNECT handshake", host.red());
     Ok(Response::builder().status(502).body(Body::empty()).unwrap())
   });
 }
@@ -169,7 +171,7 @@ async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
   let mut client: Client<HttpsConnector<HttpConnector>, Body> =
     Client::builder().build(HttpsConnector::from((http, client_conf)));
 
-  // 1. Perform TLS handshake with the target
+  // 1. Get TCP connection pool for target
   let mut pool = client
     .connection_for((
       req.uri().scheme().unwrap_or(&Scheme::from_str("https").unwrap()).clone(),
@@ -179,24 +181,27 @@ async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
     .ok()
     .unwrap();
 
+  // 2. Log / MITM the request received from source
   let uri = req.uri();
   let (parts, body) = req.into_parts();
   println!("✅ MITMed request: {:?} {:?}", parts, body);
   let modified_req = Request::from_parts(parts, body);
 
+  // 3. Use the modified request to request the target
   let response = pool.send_request_retryable(modified_req).await.ok().unwrap();
+
+  // 4. Log / MITM the response received from target
   let (resp_parts, resp_body) = response.into_parts();
   println!("✅ MITMed response: {:?} {:?}", resp_parts, resp_body);
   let modified_resp = Response::from_parts(resp_parts, resp_body);
 
+  // 5. Pass on the modified response to source
   modified_resp
 }
 
-// Option<Body>
-fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) -> () {
+async fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) -> () {
   let svc = service_fn(move |req: Request<Body>| {
     async move {
-      println!("------------------------------------------------------");
       let authority = req.headers().get("host").unwrap().to_str().unwrap();
 
       let uri = http::uri::Builder::new()
@@ -215,7 +220,10 @@ fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) -> () 
     }
   });
 
-  Http::new().serve_connection(stream.unwrap(), svc).map_err(|e: hyper::Error| {
-    println!("❌ Error in serving http conection inside TLS tunnel {:?}", e);
-  });
+  let res = Http::new()
+    .serve_connection(stream.unwrap(), svc)
+    .map_err(|e: hyper::Error| {
+      println!("❌ Error in serving http conection inside TLS tunnel {:?}", e);
+    })
+    .await;
 }

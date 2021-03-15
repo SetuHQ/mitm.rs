@@ -50,7 +50,7 @@ fn main() {
   // let mut certs: HashMap<String, CertPair> = HashMap::new();
   let hosts = args.client_host.unwrap_or(vec![]);
   for (i, host) in hosts.iter().enumerate() {
-    println!("Configuring host no. {}: {} for client authentication", i, host.red());
+    println!("✅ Configuring host no. {}: {} for client authentication", i, host.red());
     let cert_paths = args.client_cert.clone().unwrap_or(vec![]);
     let key_paths = args.client_key.clone().unwrap_or(vec![]);
 
@@ -65,10 +65,10 @@ fn main() {
     }
   }
 
-  println!("{}", format!("CA certificate: \n{}", from_utf8(&ca_cert.to_pem().unwrap()).unwrap().magenta()));
+  println!("{}", format!("✅ CA certificate: \n{}", from_utf8(&ca_cert.to_pem().unwrap()).unwrap().magenta()));
   println!(
     "{}",
-    format!("CA private key: \n{}", from_utf8(&ca_privkey.private_key_to_pem_pkcs8().unwrap()).unwrap().magenta())
+    format!("✅ CA private key: \n{}", from_utf8(&ca_privkey.private_key_to_pem_pkcs8().unwrap()).unwrap().magenta())
   );
 
   mitm::listen(args_other, ca_pair);
