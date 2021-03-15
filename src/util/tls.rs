@@ -65,7 +65,7 @@ pub fn client_config(host: &str) -> ClientConfig {
   client_config.root_store = match rustls_native_certs::load_native_certs() {
     Ok(store) => store,
     Err((Some(store), err)) => {
-      println!("Could not load all certificates: {:?}", err);
+      println!("❌ Could not load all certificates: {:?}", err);
       store
     }
     Err((None, err)) => Err(err).expect("cannot access native cert store"),

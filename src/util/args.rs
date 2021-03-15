@@ -71,7 +71,7 @@ pub fn parse_args(app: App) -> Args {
     args.client_cert = args.client_cert.map(|a| a.iter().map(|x| fs::read_to_string(x).unwrap()).collect());
     args
   } else {
-    println!("{}", "Command line config file not present, proceeding to parse cmd params".magenta());
+    println!("❌ {}", "Command line config file not present, proceeding to parse cmd params".magenta());
 
     // load certificate file contents
     let ca_cert: Option<String> = matches.value_of("ca_cert").map(|x| {

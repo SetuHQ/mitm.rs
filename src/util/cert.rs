@@ -30,7 +30,7 @@ lazy_static! {
 
 /// Make a CA certificate and private key
 pub fn mk_ca_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
-  println!("{}", "Creating CA certificate".green());
+  println!("✅ {}", "Creating CA certificate".green());
 
   // generate private key
   let rsa = Rsa::generate(2048)?;
@@ -97,7 +97,7 @@ pub fn mk_ca_signed_cert(
   ca_privkey: &PKeyRef<Private>,
   authority: &Authority,
 ) -> Result<(X509, PKey<Private>), ErrorStack> {
-  println!("{} for {}", "Creating signed certificate".green(), authority.host().red());
+  println!("✅ {} for {}", "Creating signed certificate".green(), authority.host().red());
 
   // generate private key
   let rsa = Rsa::generate(2048)?;
@@ -154,8 +154,8 @@ pub fn mk_ca_signed_cert(
 // Verify that this cert was issued by this ca
 pub fn verify(ca_cert: X509, cert: X509) -> Result<(), ErrorStack> {
   match ca_cert.issued(&cert) {
-    X509VerifyResult::OK => println!("Certificate verified!"),
-    ver_err => println!("Failed to verify certificate: {}", ver_err),
+    X509VerifyResult::OK => println!("✅ Certificate verified!"),
+    ver_err => println!("❌ Failed to verify certificate: {}", ver_err),
   };
 
   Ok(())

@@ -59,7 +59,8 @@ pub async fn listen(args: Args, ca: CertPair) {
     return async move {
       // Callback for handling every incoming request
       return Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
-        println!("Handling request {:?}", req);
+        // TODO: log here
+        println!("✅ {}: Handling request {:?}", req.uri().to_string().red(), req);
 
         let args = args.clone();
         let ca = ca.clone();
@@ -78,10 +79,10 @@ pub async fn listen(args: Args, ca: CertPair) {
 
   // Bind to given port and start server
   let server = Server::bind(&addr).serve(make_svc);
-  println!("Listening on http://{}", addr.to_string().red());
+  println!("✅ Listening on http://{}", addr.to_string().red());
 
   if let Err(e) = server.await {
-    eprintln!("server error: {}", e);
+    eprintln!("❌ server error: {}", e);
   }
 }
 
@@ -90,10 +91,10 @@ async fn mitm(req: Request<Body>, args: Args, ca: CertPair) -> Result<Response<B
 
   // Service a TLS CONNECT request
   if Method::CONNECT == req.method() {
-    println!("Received a CONNECT request for {}", host.red());
+    println!("✅ {}: Received a CONNECT request", host.red());
     handle_connect_request(req, args, ca).await
   } else {
-    println!("MITM-ing request from {}", host.red());
+    println!("✅ {}: MITM-ing request", host.red());
     let args = Arc::new(args);
     Ok(handle_proxy_request(req).await)
   }
@@ -120,7 +121,7 @@ async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) ->
     req.uri().authority().unwrap().clone()
   ))
   .map_err(|e| {
-    Error::new(ErrorKind::Other, format!("Could not obtain TLS connection to {}", host.red()))
+    Error::new(ErrorKind::Other, format!("{}: Could not obtain TLS connection", host.red()))
   })
   .await
   // 2. Upgrade the HTTP connection from the client
@@ -131,20 +132,21 @@ async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) ->
       })
       // 3. Perform the TLS handshake with the client
       .and_then(|upgraded:Upgraded| {
-        println!("Connection upgraded with client");
+        println!("✅ Connection upgraded with client");
         TlsAcceptor::from(tls_conf).accept(upgraded)
       })
       // 4. Handle the underlying HTTP request
       .map(|accepted| {
-        println!("Established CONNECT TLS connection with client");
+        println!("✅ Established CONNECT TLS connection with client: {:?}", accepted);
         handle_https_proxy_request(accepted)
       });
 
     tokio::task::spawn(job);
+    println!("✅ {}: Accepting the CONNECT request", host.red());
     Response::builder().status(200).body(Body::empty()).unwrap()
   })
   .or_else(|x| {
-    println!("Failed to perform the CONNECT protocol for {}", host.red());
+    println!("❌ {}: Failed to perform the CONNECT protocol", host.red());
     Ok(Response::builder().status(502).body(Body::empty()).unwrap())
   });
 }
@@ -179,12 +181,12 @@ async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
 
   let uri = req.uri();
   let (parts, body) = req.into_parts();
-  println!("MITMed request: {:?} {:?}", parts, body);
+  println!("✅ MITMed request: {:?} {:?}", parts, body);
   let modified_req = Request::from_parts(parts, body);
 
   let response = pool.send_request_retryable(modified_req).await.ok().unwrap();
   let (resp_parts, resp_body) = response.into_parts();
-  println!("MITMed response: {:?} {:?}", resp_parts, resp_body);
+  println!("✅ MITMed response: {:?} {:?}", resp_parts, resp_body);
   let modified_resp = Response::from_parts(resp_parts, resp_body);
 
   modified_resp
@@ -194,6 +196,7 @@ async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
 fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) -> () {
   let svc = service_fn(move |req: Request<Body>| {
     async move {
+      println!("------------------------------------------------------");
       let authority = req.headers().get("host").unwrap().to_str().unwrap();
 
       let uri = http::uri::Builder::new()
@@ -213,6 +216,6 @@ fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) -> () 
   });
 
   Http::new().serve_connection(stream.unwrap(), svc).map_err(|e: hyper::Error| {
-    println!("Error in serving http conection inside TLS tunnel");
+    println!("❌ Error in serving http conection inside TLS tunnel {:?}", e);
   });
 }
