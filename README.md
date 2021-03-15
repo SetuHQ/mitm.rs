@@ -23,16 +23,16 @@ The server can be configured using:
 
 ```json
 {
-  "ca_cert"             : ./ca.pem,
-  "ca_privkey"          : ./ca_priv.pem,
-  "host"                : 0.0.0.0,
+  "ca_cert"             : "./ca.pem",
+  "ca_privkey"          : "./ca_priv.pem",
+  "host"                : "0.0.0.0",
   "port"                : 8080,
   "client_key"          : "./key1.pem,./key2.pem,./key3.pem",
   "client_cert"         : "./cert1.pem,./cert2.pem,./cert3.pem",
   "client_host"         : "website1.com,website2.com,website3.com",
   "log_file"            : "/var/log/mitm.log",
-  "basic_auth_user"     : username,
-  "basic_auth_password" : password,
+  "basic_auth_user"     : "username",
+  "basic_auth_password" : "password",
 }
 ```
 
