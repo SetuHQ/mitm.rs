@@ -1,41 +1,28 @@
-use std::collections::HashMap;
 use std::convert::{Infallible, TryInto};
 use std::io::{Error, ErrorKind};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use bytes::Bytes;
 use colored::*;
-use futures::future::{self, Future};
-use futures_util::future::try_join;
 use futures_util::{FutureExt, TryFutureExt};
-use hyper::client::client::ClientError;
-use hyper::client::pool::Key as PoolKey;
 use hyper::client::HttpConnector;
-use hyper::http::uri::{self, Authority, Scheme};
-use hyper::http::{StatusCode, Uri};
+use hyper::http::uri::Scheme;
+use hyper::http::StatusCode;
 use hyper::server::conn::{AddrStream, Http};
-use hyper::service::{make_service_fn, service_fn, Service};
+use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
-use hyper::{http, upgrade, Body, Client, Method, Request, Response, Server};
-use hyper_rustls::{HttpsConnector, MaybeHttpsStream};
-use lazy_static::{__Deref, lazy_static};
+use hyper::{http, Body, Client, Method, Request, Response, Server};
+use hyper_rustls::HttpsConnector;
+use lazy_static::lazy_static;
 use lru_cache::LruCache;
 // TLS
-use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::x509::X509;
-use rustls::ClientConfig;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt, BufStream};
-use tokio::net::TcpStream;
-use tokio_native_tls::{native_tls, TlsConnector};
 use tokio_rustls::server::TlsStream;
-use tokio_rustls::{Accept, TlsAcceptor};
+use tokio_rustls::TlsAcceptor;
 
 use crate::util::args::Args;
-use crate::util::cert::{mk_ca_cert, mk_ca_signed_cert, read_cert, read_pkey, verify, CertPair, CERTIFICATES};
+use crate::util::cert::{mk_ca_signed_cert, CertPair};
 use crate::util::tls::{client_config, tls_config};
-use crate::util::util::print_type_of;
 
 
 lazy_static! {
@@ -105,7 +92,7 @@ async fn handle_connect_request(req: Request<Body>) -> Result<Response<Body>, Er
   let mut http = HttpConnector::new();
   http.enforce_http(false);
   // let mut connector = ;
-  let mut client: Client<HttpsConnector<HttpConnector>, Body> =
+  let client: Client<HttpsConnector<HttpConnector>, Body> =
     Client::builder().build(HttpsConnector::from((http, client_conf)));
 
   // 1. Get TCP connection pool for target
@@ -153,7 +140,7 @@ async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
   let client_conf = client_config(host);
   let mut http = HttpConnector::new();
   http.enforce_http(false);
-  let mut client: Client<HttpsConnector<HttpConnector>, Body> =
+  let client: Client<HttpsConnector<HttpConnector>, Body> =
     Client::builder().build(HttpsConnector::from((http, client_conf)));
 
   // 1. Get TCP connection pool for target
@@ -209,5 +196,6 @@ async fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) 
     .map_err(|e: hyper::Error| {
       println!("❌ Error in serving http conection inside TLS tunnel {:?}", e);
     })
-    .await;
+    .await
+    .unwrap_or(());
 }

@@ -1,5 +1,4 @@
-use std::fmt::Display;
-use std::{fmt, fs};
+use std::fs;
 
 use clap::App;
 use colored::*;

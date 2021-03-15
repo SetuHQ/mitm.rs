@@ -1,5 +1,5 @@
 // Compiler config
-#![allow(warnings)]
+#![deny(warnings)]
 #![deny(unused_variables)]
 #![allow(dead_code)]
 #[macro_use]
@@ -7,17 +7,16 @@
 mod mitm;
 mod util;
 
-use std::collections::HashMap;
 use std::str::from_utf8;
 
 use clap::{load_yaml, App};
 use colored::*;
-use openssl::pkey::{PKey, PKeyRef, Private};
+use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 
 // use crate::mitm::listen;
 use crate::util::args::{parse_args, Args};
-use crate::util::cert::{mk_ca_cert, mk_ca_signed_cert, read_cert, read_pkey, verify, CertPair, CERTIFICATES};
+use crate::util::cert::{mk_ca_cert, read_cert, read_pkey, CertPair, CERTIFICATES};
 
 
 fn main() {
