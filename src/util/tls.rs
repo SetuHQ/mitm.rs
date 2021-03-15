@@ -58,7 +58,7 @@ where
 }
 
 // Generate TLS config for a client, with client certificates if host is provided
-pub fn client_config(host: &str) -> ClientConfig {
+pub fn client_config(_host: &str) -> ClientConfig {
   let mut client_config = ClientConfig::new();
   // .set_single_client_cert() // TODO: Add client certificates here
   // Load system certificates

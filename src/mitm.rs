@@ -51,26 +51,19 @@ pub async fn listen(args: Args, ca: CertPair) {
   ARGS.lock().unwrap().insert("args".to_string(), Arc::new(args.clone()));
   CA.lock().unwrap().insert("ca".to_string(), Arc::new(ca.clone()));
 
-  let make_svc = make_service_fn(|socket: &AddrStream| {
-    let remote_addr = socket.remote_addr();
-    let args = args.clone();
-    let ca = ca.clone();
-
+  let make_svc = make_service_fn(|_socket: &AddrStream| {
     return async move {
       // Callback for handling every incoming request
       return Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
         // TODO: log here
         println!("✅ {}: Handling request {:?}", req.uri().to_string().red(), req);
 
-        let args = args.clone();
-        let ca = ca.clone();
-
         async move {
           // Construct the failure response body
           let mut failure = Response::new(Body::from("Error: Server error occurred."));
           *failure.status_mut() = StatusCode::BAD_REQUEST;
           // MITM the request
-          let response = mitm(req, args, ca).await.unwrap_or(failure);
+          let response = mitm(req).await.unwrap_or(failure);
           return Ok::<_, Infallible>(response);
         }
       }));
@@ -86,26 +79,26 @@ pub async fn listen(args: Args, ca: CertPair) {
   }
 }
 
-async fn mitm(req: Request<Body>, args: Args, ca: CertPair) -> Result<Response<Body>, Error> {
+async fn mitm(req: Request<Body>) -> Result<Response<Body>, Error> {
   let host: &str = &format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
 
   // Service a TLS CONNECT request
   if Method::CONNECT == req.method() {
     println!("✅ {}: Received a CONNECT request", host.red());
-    handle_connect_request(req, args, ca).await
+    handle_connect_request(req).await
   } else {
     println!("✅ {}: MITM-ing request", host.red());
-    let args = Arc::new(args);
     Ok(handle_proxy_request(req).await)
   }
 }
 
-async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) -> Result<Response<Body>, Error> {
+async fn handle_connect_request(req: Request<Body>) -> Result<Response<Body>, Error> {
   let host: &str = &format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
+  let ca = CA.lock().unwrap().get_mut("ca").unwrap().clone();
 
   // Prepare: get TLS config with impersonating certs, sort out the target URI
   let authority = req.uri().authority().unwrap();
-  let tls_conf = tls_config(authority, |auth| mk_ca_signed_cert(&ca.cert, &ca.key, authority));
+  let tls_conf = tls_config(authority, |_auth| mk_ca_signed_cert(&ca.cert, &ca.key, authority));
 
   // Build a client with TLS config
   let client_conf = client_config(host);
@@ -120,7 +113,7 @@ async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) ->
     req.uri().scheme().unwrap_or(&Scheme::from_str("https").unwrap()).clone(),
     req.uri().authority().unwrap().clone()
   ))
-  .map_err(|e| {
+  .map_err(|_e| {
     Error::new(ErrorKind::Other, format!("{}: Could not obtain TLS connection", host.red()))
   })
   .await
@@ -147,8 +140,8 @@ async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) ->
     println!("✅ {}: Accepting the CONNECT request", host.red());
     Response::builder().status(200).body(Body::empty()).unwrap()
   })
-  .or_else(|x| {
-    println!("❌ {}: Failed to perform the CONNECT handshake", host.red());
+  .or_else(|e| {
+    println!("❌ {}: Failed to perform the CONNECT handshake: {}", host.red(), e);
     Ok(Response::builder().status(502).body(Body::empty()).unwrap())
   });
 }
@@ -156,18 +149,10 @@ async fn handle_connect_request(req: Request<Body>, args: Args, ca: CertPair) ->
 async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
   let host: &str = &format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
 
-  let args = ARGS.lock().unwrap().get_mut("args").unwrap().clone();
-  let ca = CA.lock().unwrap().get_mut("ca").unwrap().clone();
-
-  // Prepare: get TLS config with impersonating certs, sort out the target URI
-  let authority = req.uri().authority().unwrap();
-  let tls_conf = tls_config(authority, |auth| mk_ca_signed_cert(&ca.cert, &ca.key, authority));
-
   // Build a client with TLS config
   let client_conf = client_config(host);
   let mut http = HttpConnector::new();
   http.enforce_http(false);
-  // let mut connector = ;
   let mut client: Client<HttpsConnector<HttpConnector>, Body> =
     Client::builder().build(HttpsConnector::from((http, client_conf)));
 
@@ -182,7 +167,6 @@ async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
     .unwrap();
 
   // 2. Log / MITM the request received from source
-  let uri = req.uri();
   let (parts, body) = req.into_parts();
   println!("✅ MITMed request: {:?} {:?}", parts, body);
   let modified_req = Request::from_parts(parts, body);
@@ -220,7 +204,7 @@ async fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) 
     }
   });
 
-  let res = Http::new()
+  Http::new()
     .serve_connection(stream.unwrap(), svc)
     .map_err(|e: hyper::Error| {
       println!("❌ Error in serving http conection inside TLS tunnel {:?}", e);

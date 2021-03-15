@@ -1,6 +1,6 @@
 // Compiler config
 #![allow(warnings)]
-#![allow(unused_variables)]
+#![deny(unused_variables)]
 #![allow(dead_code)]
 #[macro_use]
 
