@@ -171,6 +171,8 @@ async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
 }
 
 async fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) -> () {
+  let stream = Box::new(stream);
+
   let svc = service_fn(move |req: Request<Body>| {
     async move {
       let authority = req.headers().get("host").unwrap().to_str().unwrap();
@@ -191,8 +193,9 @@ async fn handle_https_proxy_request(stream: Result<TlsStream<Upgraded>, Error>) 
     }
   });
 
-  Http::new()
-    .serve_connection(stream.unwrap(), svc)
+  let mut h = Http::new();
+  h.http1_only(true);
+  h.serve_connection(stream.unwrap(), svc)
     .map_err(|e: hyper::Error| {
       println!("❌ Error in serving http conection inside TLS tunnel {:?}", e);
     })

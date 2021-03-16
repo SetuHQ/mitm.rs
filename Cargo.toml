@@ -3,6 +3,13 @@ name = "mitm"
 version = "0.1.0"
 authors = ["ixaxaar <root@ixaxaar.in>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "MITM-enabled auditing proxy server for outbound traffic."
+readme = "README.md"
+homepage = "https://github.com/SetuHQ/mitm.rs"
+repository = "https://github.com/SetuHQ/mitm.rs"
+keywords = ["cli", "mitm", "proxy"]
+categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -35,5 +42,3 @@ termcolor           = "1.1.2"
 
 [patch.crates-io]
 "hyper" = { path = "./lib/hyper" }
-
-# "hyper" = { git = "https://github.com/SetuHQ/hyper-mitm", branch = "mitm" }
