@@ -14,7 +14,7 @@
   - [PUT](#put)
   - [PATCH](#patch)
   - [DELETE](#delete)
-- [Deploy](#deploy)
+  - [Client certificates](#client-certificates)
 - [Develop](#develop)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -232,6 +232,51 @@ expected response:
 {}
 ```
 
-## Deploy
+### Client certificates
+
+Download client certificates from https://badssl.com/download/
+
+```bash
+mitm.rs \
+  --ca_cert ./ca.pem \
+  --ca_privkey ./ca_priv.pem \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --client_key "./badssl-key.pem" \
+  --client_cert "./badssl-cert.pem" \
+  --client_host "client.badssl.com" \
+  --log_file "./mitm.log" \
+  --basic_auth_user username \
+  --basic_auth_password password
+
+# Enter certificate passkey: `badssl.com`
+```
+
+Test curl on another terminal:
+
+```bash
+export USER=username
+export PASS=password
+export HOST=localhost
+export PORT=8080
+
+curl --cacert ./cert.pem -vvv\
+  -x "http://${USER}:${PASS}@${HOST}:${PORT}/" \
+  https://client.badssl.com/
+```
 
 ## Develop
+
+All commands required for development are captured in the makefile:
+
+```bash
+$ make help
+
+build                          Build the server
+run                            Run the server
+watch                          Build, watch for changes and restart
+watch-run                      Build and run, watch for changes and restart
+release                        Create a release binary `mitm.rs`
+publish                        Publish into crates.io
+help                           Dislay this help
+```

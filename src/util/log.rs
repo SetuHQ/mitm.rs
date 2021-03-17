@@ -6,7 +6,7 @@ use log4rs::encode::pattern::PatternEncoder;
 use log4rs::filter::threshold::ThresholdFilter;
 
 pub fn configure_logger(path: &str) -> Result<(), SetLoggerError> {
-  let level = log::LevelFilter::Trace;
+  let level = log::LevelFilter::Info;
   let file_path = path;
 
   // Build a stderr logger.

@@ -28,7 +28,6 @@ use crate::util::tls::{client_config, tls_config};
 
 
 lazy_static! {
-  // pub static ref ARGS: Mutex<Args> = Mutex::new(Args::new());
   static ref ARGS: Mutex<LruCache<String, Arc<Args>>> = Mutex::new(LruCache::new(1000));
   static ref CA: Mutex<LruCache<String, Arc<CertPair>>> = Mutex::new(LruCache::new(1000));
 }
@@ -121,7 +120,7 @@ async fn handle_connect_request(req: Request<Body>) -> Result<Response<Body>, Er
   let tls_conf = tls_config(authority, |_auth| mk_ca_signed_cert(&ca.cert, &ca.key, authority));
 
   // Build a client with TLS config
-  let client_conf = client_config(host);
+  let client_conf = client_config(req.uri().host().unwrap());
   let mut http = HttpConnector::new();
   http.enforce_http(false);
   let client: Client<HttpsConnector<HttpConnector>, Body> =
@@ -166,10 +165,8 @@ async fn handle_connect_request(req: Request<Body>) -> Result<Response<Body>, Er
 }
 
 async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
-  let host: &str = &format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
-
   // Build a client with TLS config
-  let client_conf = client_config(host);
+  let client_conf = client_config(req.uri().host().unwrap());
   let mut http = HttpConnector::new();
   http.enforce_http(false);
   let client: Client<HttpsConnector<HttpConnector>, Body> =

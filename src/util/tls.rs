@@ -12,6 +12,7 @@ use openssl::x509::X509;
 use rustls;
 use rustls::{Certificate, ClientConfig, PrivateKey};
 
+use crate::CERTIFICATES;
 
 // The global SSL certificates cache
 lazy_static! {
@@ -50,9 +51,20 @@ where
 }
 
 // Generate TLS config for a client, with client certificates if host is provided
-pub fn client_config(_host: &str) -> ClientConfig {
+pub fn client_config(host: &str) -> ClientConfig {
   let mut client_config = ClientConfig::new();
-  // .set_single_client_cert() // TODO: Add client certificates here
+  let certs = CERTIFICATES.lock().unwrap();
+  let client_cert = certs.get(host);
+
+  // set client certificate if configured
+  if !client_cert.is_none() {
+    let c = client_cert.unwrap();
+    // let c_cert = Certificate::from(c.cert.to_der().unwrap());
+    let cert = c.cert.to_der().map(|x| Certificate(x)).unwrap();
+    let key = c.key.private_key_to_der().map(|x| PrivateKey(x)).unwrap();
+    client_config.set_single_client_cert(vec![cert], key).unwrap();
+  }
+
   // Load system certificates
   client_config.root_store = match rustls_native_certs::load_native_certs() {
     Ok(store) => store,

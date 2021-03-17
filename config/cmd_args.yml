@@ -65,7 +65,7 @@ args:
       long_help: Log requests to file
       required: false
       takes_value: true
-      default_value: "requests.log.json"
+      default_value: "requests.log"
   # Client cerdentials per target website
   - basic_auth_user:
       short: u

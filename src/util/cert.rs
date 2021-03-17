@@ -94,7 +94,7 @@ pub fn mk_ca_signed_cert(
   ca_privkey: &PKeyRef<Private>,
   authority: &Authority,
 ) -> Result<(X509, PKey<Private>), ErrorStack> {
-  println!("✅ {} for {}", "Creating signed certificate".green(), authority.host().red());
+  println!("✅ {}: {}", authority.host().red(), "Creating signed certificate".green());
 
   // generate private key
   let rsa = Rsa::generate(2048)?;
@@ -126,7 +126,7 @@ pub fn mk_ca_signed_cert(
   cert_builder
     .append_extension(KeyUsage::new().critical().non_repudiation().digital_signature().key_encipherment().build()?)?;
 
-  // TODO: Figure out if we need these extensions for debugging
+  // NOTE: Figure out if we need these extensions for debugging
   // let subject_key_identifier = SubjectKeyIdentifier::new().build(&cert_builder.x509v3_context(Some(ca_cert), None))?;
   // cert_builder.append_extension(subject_key_identifier)?;
 
