@@ -12,6 +12,8 @@ keywords = ["cli", "mitm", "proxy"]
 categories = ["command-line-utilities"]
 
 [dependencies]
+log                 = "0.4"
+log4rs              = "1.0"
 clap                = { version = "2.33.3", features = ["yaml"] }
 # Serde
 serde               = { version = "1.0", features = ["derive"] }

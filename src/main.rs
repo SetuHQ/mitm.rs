@@ -1,6 +1,6 @@
 // Compiler config
-#![allow(warnings)]
-#![allow(unused_variables)]
+#![deny(warnings)]
+#![deny(unused_variables)]
 #![allow(dead_code)]
 #[macro_use]
 
@@ -17,6 +17,7 @@ use openssl::x509::X509;
 // use crate::mitm::listen;
 use crate::util::args::{parse_args, Args};
 use crate::util::cert::{mk_ca_cert, read_cert, read_pkey, CertPair, CERTIFICATES};
+use crate::util::log::configure_logger;
 
 
 fn main() {
@@ -43,6 +44,8 @@ fn main() {
   let ca_cert: X509 = args.ca_cert.map(|x| read_cert(x).unwrap()).unwrap_or(cert);
   let ca_privkey: PKey<Private> = args.ca_privkey.map(|x| read_pkey(x).unwrap()).unwrap_or(pkey);
   let ca_pair = CertPair { key: ca_privkey.clone(), cert: ca_cert.clone() };
+
+  configure_logger(&args.log_file).unwrap();
 
   // load client certificates
   // let mut certs: Box<HashMap<String, CertPair>> = Box::new(HashMap::new());
@@ -71,5 +74,4 @@ fn main() {
   );
 
   mitm::listen(args_other, ca_pair);
-  // mitm::listen(args.host, args.port, &certs, ca_cert, ca_privkey);
 }

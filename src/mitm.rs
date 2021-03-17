@@ -16,6 +16,7 @@ use hyper::upgrade::Upgraded;
 use hyper::{http, Body, Client, Method, Request, Response, Server};
 use hyper_rustls::HttpsConnector;
 use lazy_static::lazy_static;
+use log::info;
 use lru_cache::LruCache;
 // TLS
 use tokio_rustls::server::TlsStream;
@@ -43,7 +44,6 @@ pub async fn listen(args: Args, ca: CertPair) {
     return async move {
       // Callback for handling every incoming request
       return Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
-        // TODO: log here
         println!("✅ {}: Handling request {:?}", req.uri().to_string().red(), req);
 
         async move {
@@ -67,6 +67,7 @@ pub async fn listen(args: Args, ca: CertPair) {
   }
 }
 
+// basic auth for the proxy server
 fn ensure_auth(headers: &http::header::HeaderMap<http::header::HeaderValue>) -> bool {
   let args = ARGS.lock().unwrap().get_mut("args").unwrap().clone();
   let default_creds = &"".to_string();
@@ -123,7 +124,6 @@ async fn handle_connect_request(req: Request<Body>) -> Result<Response<Body>, Er
   let client_conf = client_config(host);
   let mut http = HttpConnector::new();
   http.enforce_http(false);
-  // let mut connector = ;
   let client: Client<HttpsConnector<HttpConnector>, Body> =
     Client::builder().build(HttpsConnector::from((http, client_conf)));
 
@@ -187,7 +187,7 @@ async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
 
   // 2. Log / MITM the request received from source
   let (parts, body) = req.into_parts();
-  println!("✅ MITMed request: {:?} {:?}", parts, body);
+  info!("✅ MITMed request: {:?} {:?}", parts, body);
   let modified_req = Request::from_parts(parts, body);
 
   // 3. Use the modified request to request the target
@@ -195,7 +195,7 @@ async fn handle_proxy_request(req: Request<Body>) -> Response<Body> {
 
   // 4. Log / MITM the response received from target
   let (resp_parts, resp_body) = response.into_parts();
-  println!("✅ MITMed response: {:?} {:?}", resp_parts, resp_body);
+  info!("✅ MITMed response: {:?} {:?}", resp_parts, resp_body);
   let modified_resp = Response::from_parts(resp_parts, resp_body);
 
   // 5. Pass on the modified response to source
