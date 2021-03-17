@@ -49,6 +49,58 @@ mitm.rs --config_file ./confg.json
 
 ### 2. Command-line parameters
 
+```markdown
+mitm.rs 0.1
+infra@setu.co
+
+USAGE:
+    mitm [OPTIONS]
+
+FLAGS:
+        --help
+            Prints help information
+
+    -V, --version
+            Prints version information
+
+
+OPTIONS:
+    -w, --basic_auth_password <basic_auth_password>
+            Password for basic auth [Optional]
+
+    -u, --basic_auth_user <basic_auth_user>
+            Username for basic auth [Optional]
+
+        --ca_cert <ca_cert>
+            Path of the CA Certificate to use [Optional]
+
+        --ca_privkey <ca_privkey>
+            Path of the CA private key to use [Optional]
+
+        --client_cert <client_cert>
+            Client certificate location (comma separated) [Optional]
+
+        --client_host <client_host>
+            Websites / endpoint for which corresponding client certificate applies (comma separated) [Optional]
+
+        --client_key <client_key>
+            Client certificate's private key location (comma separated) [Optional]
+
+    -f, --config <FILE>
+            Pick command line options from a config file
+
+    -h, --host <host>
+            Hostname to listen to [default: 127.0.0.1]
+
+    -l, --log_file <log_file>
+            Log requests to file [default: requests.log.json]
+
+    -p, --port <port>
+            Port to listen to [default: 8080]
+```
+
+For example:
+
 ```bash
 mitm.rs \
   --ca_cert ./ca.pem                                     \
@@ -60,7 +112,7 @@ mitm.rs \
   --client_host "website1.com,website2.com,website3.com" \
   --log_file "/var/log/mitm.log"                         \
   --basic_auth_user username                             \
-  --basic_auth_password password                         \
+  --basic_auth_password password
 ```
 
 ## Testing

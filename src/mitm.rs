@@ -4,6 +4,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
+use base64;
 use colored::*;
 use futures_util::{FutureExt, TryFutureExt};
 use hyper::client::HttpConnector;
@@ -66,8 +67,39 @@ pub async fn listen(args: Args, ca: CertPair) {
   }
 }
 
+fn ensure_auth(headers: &http::header::HeaderMap<http::header::HeaderValue>) -> bool {
+  let args = ARGS.lock().unwrap().get_mut("args").unwrap().clone();
+  let default_creds = &"".to_string();
+  let username = args.basic_auth_user.as_ref().unwrap_or(default_creds);
+  let password = args.basic_auth_password.as_ref().unwrap_or(default_creds);
+
+  if headers.contains_key("Proxy-Authorization") {
+    let encoded_creds = headers["Proxy-Authorization"].to_str().unwrap_or("Basic ").replace("Basic ", "");
+    let creds = base64::decode(encoded_creds);
+
+    return match creds {
+      Ok(c) => {
+        let x = String::from_utf8_lossy(&c);
+        let mut s = x.split(":");
+        let username_match = s.next().unwrap() == username;
+        let password_match = s.next().unwrap() == password;
+
+        username_match & password_match
+      }
+      Err(_e) => false,
+    };
+  } else {
+    return false;
+  }
+}
+
 async fn mitm(req: Request<Body>) -> Result<Response<Body>, Error> {
   let host: &str = &format!("{}://{}", req.uri().scheme_str().unwrap_or("https"), req.uri().authority().unwrap());
+
+  if !ensure_auth(req.headers()) {
+    println!("❌ {}: Authentication failure", host.red());
+    return Ok(Response::builder().status(400).body(Body::from("Authentication Failure")).unwrap());
+  }
 
   // Service a TLS CONNECT request
   if Method::CONNECT == req.method() {

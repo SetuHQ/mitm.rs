@@ -1,10 +1,10 @@
 name: mitm.rs
 version: "0.1"
-author: ixaxaar
+author: infra@setu.co
 long_help: Simple MITM forward proxy with client authentication
 args:
   - config:
-      short: c
+      short: f
       long: config
       value_name: FILE
       long_help: Pick command line options from a config file
@@ -12,36 +12,45 @@ args:
       takes_value: true
   # CA certificate to sign per-request certificates
   - ca_cert:
+      long: ca_cert
       long_help: Path of the CA Certificate to use [Optional]
       required: false
       takes_value: true
   - ca_privkey:
+      long: ca_privkey
       long_help: Path of the CA private key to use [Optional]
       required: false
       takes_value: true
   # Local listening address
   - host:
+      short: h
+      long: host
       long_help: Hostname to listen to
       required: false
       takes_value: true
       default_value: "127.0.0.1"
   - port:
+      short: p
+      long: port
       long_help: Port to listen to
       required: false
       takes_value: true
       default_value: "8080"
   # Client certificates per target website
   - client_key:
+      long: client_key
       long_help: Client certificate's private key location (comma separated) [Optional]
       required: false
       # multiple: true
       takes_value: true
   - client_cert:
+      long: client_cert
       long_help: Client certificate location (comma separated) [Optional]
       required: false
       # multiple: true
       takes_value: true
   - client_host:
+      long: client_host
       long_help: Websites / endpoint for which corresponding client certificate applies (comma separated) [Optional]
       required: false
       # multiple: true
@@ -51,18 +60,26 @@ args:
         - client_cert
   # Request logging
   - log_file:
+      short: l
+      long: log_file
       long_help: Log requests to file
       required: false
       takes_value: true
       default_value: "requests.log.json"
   # Client cerdentials per target website
   - basic_auth_user:
+      short: u
+      long: basic_auth_user
       long_help: Username for basic auth [Optional]
       required: false
       # multiple: true
       takes_value: true
+      default_value: "user"
   - basic_auth_password:
+      short: w
+      long: basic_auth_password
       long_help: Password for basic auth [Optional]
       required: false
       # multiple: true
       takes_value: true
+      default_value: "password"
