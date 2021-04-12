@@ -1,0 +1,18 @@
+{
+  "basic_auth_password": "password",
+  "basic_auth_user": "username",
+  "ca_cert": "/app/ca.pem",
+  "ca_privkey": "/app/ca_priv.pem",
+  "client_cert": [
+    "/app/ca.pem"
+  ],
+  "client_host": [
+    "client.badssl.com"
+  ],
+  "client_key": [
+    "/app/ca_priv.pem"
+  ],
+  "host": "0.0.0.0",
+  "log_file": "/home/appuser/mitm.log",
+  "port": 8080
+}
