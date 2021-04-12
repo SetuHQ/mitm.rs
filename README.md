@@ -26,6 +26,14 @@ Logs all requests going out of a network.
 
 ## TLDR
 
+Create CA cert:
+
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ca_priv.key -out ca.pem
+```
+
+Assuming `ca.pem` and `ca_priv.pem` exist in `./certs` folder:
+
 ```bash
  docker run -it --rm -p 8080:8080 --mount type=bind,source="$(pwd)"/certs,target=/certs quay.io/setuinfra/mitm.rs:latest /app/mitm.rs \
   --ca_cert /certs/ca.pem \
