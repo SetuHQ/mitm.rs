@@ -4,6 +4,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
 
+- [TLDR](#tldr)
 - [Run](#run)
   - [1. JSON file](#1-json-file)
   - [2. Command-line parameters](#2-command-line-parameters)
@@ -22,6 +23,19 @@
 
 MITM-enabled auditing proxy server for outbound traffic.
 Logs all requests going out of a network.
+
+## TLDR
+
+```bash
+ docker run -it --rm -p 8080:8080 --mount type=bind,source="$(pwd)"/certs,target=/certs quay.io/setuinfra/mitm.rs:latest /app/mitm.rs \
+  --ca_cert /certs/ca.pem \
+  --ca_privkey /certs/ca_priv.pem \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --log_file "/tmp/mitm.log" \
+  --basic_auth_user user \
+  --basic_auth_password password
+```
 
 ## Run
 
