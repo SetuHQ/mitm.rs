@@ -15,6 +15,7 @@
   - [PATCH](#patch)
   - [DELETE](#delete)
   - [Client certificates](#client-certificates)
+- [Docker](#docker)
 - [Develop](#develop)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -238,12 +239,12 @@ Download client certificates from https://badssl.com/download/
 
 ```bash
 mitm.rs \
-  --ca_cert ./ca.pem \
-  --ca_privkey ./ca_priv.pem \
+  --ca_cert ./certs/ca.pem \
+  --ca_privkey ./certs/ca_priv.pem \
   --host 0.0.0.0 \
   --port 8080 \
-  --client_key "./badssl-key.pem" \
-  --client_cert "./badssl-cert.pem" \
+  --client_key "./certs/badssl-key.pem" \
+  --client_cert "./certs/badssl-cert.pem" \
   --client_host "client.badssl.com" \
   --log_file "./mitm.log" \
   --basic_auth_user username \
@@ -263,6 +264,20 @@ export PORT=8080
 curl --cacert ./cert.pem -vvv\
   -x "http://${USER}:${PASS}@${HOST}:${PORT}/" \
   https://client.badssl.com/
+```
+
+## Docker
+
+A docker container can be built using
+
+```bash
+make docker
+```
+
+and run like:
+
+```bash
+docker run -it --rm -p8080:8080 mitm.rs:latest /app/mitm.rs --config /app/config.json
 ```
 
 ## Develop

@@ -19,7 +19,6 @@ repos:
       - id: check-case-conflict
       - id: detect-private-key
       - id: requirements-txt-fixer
-      - id: detect-aws-credentials
 
   - repo: https://github.com/doublify/pre-commit-rust
     rev: master
