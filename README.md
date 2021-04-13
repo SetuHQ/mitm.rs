@@ -4,22 +4,20 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
 
-- [mitm.rs](#mitmrs)
-  - [Table of Contents](#table-of-contents)
-  - [TLDR](#tldr)
-  - [Run](#run)
-    - [1. JSON file](#1-json-file)
-    - [2. Command-line parameters](#2-command-line-parameters)
-  - [Testing](#testing)
-    - [Prelude](#prelude)
-    - [GET](#get)
-    - [POST](#post)
-    - [PUT](#put)
-    - [PATCH](#patch)
-    - [DELETE](#delete)
-    - [Client certificates](#client-certificates)
-  - [Docker](#docker)
-  - [Develop](#develop)
+- [TLDR](#tldr)
+- [Run](#run)
+  - [1. JSON file](#1-json-file)
+  - [2. Command-line parameters](#2-command-line-parameters)
+- [Testing](#testing)
+  - [Prelude](#prelude)
+  - [GET](#get)
+  - [POST](#post)
+  - [PUT](#put)
+  - [PATCH](#patch)
+  - [DELETE](#delete)
+  - [Client certificates](#client-certificates)
+- [Docker](#docker)
+- [Develop](#develop)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -30,6 +28,7 @@ Logs all requests going out of a network.
 
 Create CA cert:
 
+```bash
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ca_priv.key -out ca.pem
 ```
 
